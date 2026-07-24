@@ -1,0 +1,16 @@
+{
+  "miniapp": {
+    "version": "1",
+    "name": "そよぎ式スケジューラー",
+    "iconUrl": "https://soyogi-scheduler-web.vercel.app/icons/icon-512.png",
+    "homeUrl": "https://soyogi-scheduler-web.vercel.app/",
+    "imageUrl": "https://soyogi-scheduler-web.vercel.app/icons/fc-card-3x2.png",
+    "buttonTitle": "📅 ひらく / Open",
+    "splashImageUrl": "https://soyogi-scheduler-web.vercel.app/icons/icon-512.png",
+    "splashBackgroundColor": "#2e9e6b",
+    "subtitle": "みとおしが見える、絵カードのスケジュール",
+    "description": "今やること・次にやること・あと何個を、絵カードで見てわかる見通しスケジュール。カードは絵文字も写真も、大きさや文字も自由に。完全オフライン・匿名・広告なし・無料・12言語。",
+    "primaryCategory": "productivity",
+    "tags": ["accessibility", "schedule", "autism", "dementia", "soyogi"]
+  }
+}
