@@ -7,7 +7,7 @@
    ・カード語彙・テンプレは cards.js(ヒロさん監修前のたたき台)。仕様は SPEC_V1.md / DESIGN.md */
 (function(){
 
-const VER = '0.1.0';
+const VER = '0.1.1';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
 const LS_LABELS = 'sched.labels.v1';  // { 組み込みカードid: 上書きした言葉 }(各家庭で表現が違う対応)
@@ -163,6 +163,7 @@ function applyLock(){
   $('tab-make').classList.toggle('hidden', locked);
   $('tab-set').classList.toggle('hidden', locked);
   $('hd-lock').textContent = locked ? '🔒' : '🔓';
+  const hh = $('hd-lock-hint'); if(hh) hh.classList.toggle('hidden', !locked);   // 施錠中だけ案内を出す(初見で積まない)
 }
 function unlock(){ if(!locked) return; locked = false; applyLock(); Sound.ding('done'); toast(T('lock.unlocked')); }
 function lock(){ locked = true; showScreen('scr-today'); applyLock(); toast(T('lock.locked')); }
