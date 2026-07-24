@@ -1,4 +1,9 @@
 {
+  "accountAssociation": {
+    "header": "eyJmaWQiOjMzMzkzMTUsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHg2RGYyOTIyRjc4OUVmMTFmNjk3NDREMEZkYWZCNDhmN2VhNjRmYTExIn0",
+    "payload": "eyJkb21haW4iOiJzb3lvZ2ktc2NoZWR1bGVyLXdlYi52ZXJjZWwuYXBwIn0",
+    "signature": "i2dqm1S4a5koFt63lt6RTo6eGMh9J6pCM2RbLTG0Wcw2Mh2VAvEYg4JLhnSSG/hSE40cQP91YwPLEDNsAp3aFRw="
+  },
   "miniapp": {
     "version": "1",
     "name": "そよぎ式スケジューラー",
