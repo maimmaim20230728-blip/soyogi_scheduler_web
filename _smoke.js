@@ -158,6 +158,8 @@ check('一番上のカードだけ白背景(sc-now)', countClass(todayList(), 's
 check('あと7こ 表示', created['today-remain'].textContent === 'あと 7こ');
 check('既定テーマはみどり', sandbox.document.body.getAttribute('data-theme') === 'green');
 check('タイマー表示は既定disc', evalCtx('Timer.total') === 0);
+check('BGMは既定で音1(みどりの音)', created['btn-bgm'].textContent === 'みどりの音');
+check('BGMは既定でON(有効)', evalCtx('Sound.bgmEnabled') === true);
 
 console.log('[2] 完了=カードが消える・あと◯こ が減る');
 tapEl(findByClass(todayList(), 'sched-card'));   // 先頭(おきる)を完了
@@ -242,8 +244,14 @@ tapEl(created['btn-theme']);
 check('テーマがみずいろに', sandbox.document.body.getAttribute('data-theme') === 'aqua');
 check('いろボタン表示も更新', created['btn-theme'].textContent === 'みずいろ');
 tapEl(created['btn-bgm']);
-check('BGMボタンが「みどりの音」', created['btn-bgm'].textContent === 'みどりの音');
-check('SoundのBGMが有効化', evalCtx('Sound.bgmEnabled') === true);
+check('既定の音1から音2(あおの音)へ切替', created['btn-bgm'].textContent === 'あおの音');
+check('BGMは引き続き有効', evalCtx('Sound.bgmEnabled') === true);
+tapEl(created['btn-bgm']);
+check('もう一度でOFF(なし)に', created['btn-bgm'].textContent === 'なし');
+check('BGMが無効化', evalCtx('Sound.bgmEnabled') === false);
+tapEl(created['btn-bgm']);
+check('もう一度で音1(みどりの音)に戻る', created['btn-bgm'].textContent === 'みどりの音');
+check('BGMが再度有効化', evalCtx('Sound.bgmEnabled') === true);
 tapEl(created['btn-timer']);
 check('タイマー表示が「すうじ」に', created['btn-timer'].textContent === 'すうじ');
 tapEl(created['btn-fs']);
