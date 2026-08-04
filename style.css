@@ -14,6 +14,10 @@
   --line:#d7e5da;
   --sub:#555;
   --cardmin:96px;
+  /* 下タブ/「できた」ボタンの高さ。app.js が実測値で上書きする。
+     ここの値はJSが動く前のフォールバック(端末の下部インセットぶんを含む) */
+  --tabbar-h:calc(84px + env(safe-area-inset-bottom));
+  --focusdone-h:calc(82px + env(safe-area-inset-bottom));
 }
 body[data-theme="aqua"]{
   --brand:#2b8fb5; --bg:#eff7fa; --line:#cfe5ee;
@@ -34,7 +38,9 @@ html,body{ margin:0; }
 body{
   font-family:"Hiragino Sans","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif;
   background:var(--bg); color:var(--ink);
-  padding-bottom:84px;
+  /* 下タブに隠れないよう「CSSだけで安全な下限」と「実測値+10px」の大きい方を採る。
+     JSの計測(--tabbar-h)が遅れても・小さく出ても下限を割らない */
+  padding-bottom:max(calc(84px + env(safe-area-inset-bottom)), calc(var(--tabbar-h) + 10px));
   line-height:1.6;
 }
 /* 文字サイズ3段階(せっていで切替・body class) */
@@ -44,13 +50,18 @@ body.fs2{ font-size:25px; }
 
 header#hd{
   background:var(--brand); color:#fff;
-  padding:12px 16px; font-weight:700; font-size:1.05em;
+  /* 実機で押しやすいよう縦幅を約2倍に(padding上下12→24・min-height128)
+     上は時計や電池アイコン(ステータスバー)と重ならないよう、その分だけ下げる */
+  padding:calc(24px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+          24px max(16px, env(safe-area-inset-left));
+  min-height:calc(128px + env(safe-area-inset-top));
+  font-weight:700; font-size:1.05em;
   display:flex; align-items:center; justify-content:space-between; gap:10px;
 }
 #hd-title{ flex:1; min-width:2.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #hd-right{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .hd-lock{
-  min-height:40px; min-width:40px; padding:0 8px;
+  min-height:52px; min-width:48px; padding:0 10px;
   border:none; border-radius:8px; background:rgba(255,255,255,.22); color:#fff;
   font-size:1.15em; font-family:inherit;
 }
@@ -70,7 +81,7 @@ header#hd{
 .lock-btn{ align-self:flex-start; min-height:52px; }
 .make-lock{ width:100%; margin-top:26px; }
 #hd #set-lang{
-  min-height:40px; font-size:.95em; font-family:inherit;
+  min-height:52px; font-size:.95em; font-family:inherit;
   border:none; border-radius:8px; padding:2px 6px;
   background:#fff; color:var(--ink);
 }
@@ -265,6 +276,7 @@ input[type="file"].hidden{ display:none; }
   position:fixed; left:0; right:0; bottom:0; display:flex;
   background:var(--card); border-top:2px solid var(--line);
   padding-bottom:env(safe-area-inset-bottom);
+  padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right);
 }
 .tab{
   flex:1; min-height:64px; border:none; background:none;
@@ -280,7 +292,14 @@ input[type="file"].hidden{ display:none; }
 .focus-overlay{
   position:fixed; inset:0; background:var(--bg); z-index:50; overflow-y:auto;
 }
-#focus-inner{ min-height:100%; display:flex; flex-direction:column; padding:16px 16px 100px; }
+/* 全画面なのでステータスバー/ナビゲーションバーの下まで描かれる。
+   上は「とじる」が時計と重ならないよう、下は「できた」に隠れないよう実測ぶん空ける */
+#focus-inner{
+  min-height:100%; display:flex; flex-direction:column;
+  padding:calc(16px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+          max(calc(100px + env(safe-area-inset-bottom)), calc(var(--focusdone-h) + 28px))
+          max(16px, env(safe-area-inset-left));
+}
 #focus-close{ align-self:flex-start; }
 .ctrl-btn{
   min-height:48px; padding:0 16px; font-size:1em; font-family:inherit;
@@ -306,7 +325,10 @@ input[type="file"].hidden{ display:none; }
   font-size:1.8em; font-weight:800; color:var(--brand); text-align:center; padding:20px;
 }
 .focus-done{
-  position:fixed; left:16px; right:16px; bottom:16px; min-height:66px;
+  /* ナビゲーションバーに食い込まないよう、下端は端末のインセットぶん持ち上げる */
+  position:fixed; min-height:66px;
+  left:max(16px, env(safe-area-inset-left)); right:max(16px, env(safe-area-inset-right));
+  bottom:calc(16px + env(safe-area-inset-bottom));
   background:var(--brand); color:#fff; border:none; border-radius:16px;
   font-size:1.3em; font-weight:800; font-family:inherit; z-index:51;
 }
@@ -321,7 +343,8 @@ input[type="file"].hidden{ display:none; }
 
 /* トースト */
 .toast{
-  position:fixed; bottom:96px; left:50%; transform:translateX(-50%);
+  position:fixed; left:50%; transform:translateX(-50%);
+  bottom:max(calc(96px + env(safe-area-inset-bottom)), calc(var(--tabbar-h) + 12px));
   background:#333; color:#fff; padding:10px 18px; border-radius:999px;
   opacity:0; transition:opacity .25s; pointer-events:none; z-index:60; max-width:88%;
 }
@@ -329,7 +352,11 @@ input[type="file"].hidden{ display:none; }
 
 /* ======== しゃしんの トリミング(全画面) ======== */
 .crop-overlay{ position:fixed; inset:0; background:var(--bg); z-index:70; overflow-y:auto; }
-.crop-inner{ min-height:100%; display:flex; flex-direction:column; align-items:center; gap:14px; padding:20px 16px 40px; }
+.crop-inner{
+  min-height:100%; display:flex; flex-direction:column; align-items:center; gap:14px;
+  padding:calc(20px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+          calc(40px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
 .crop-title{ font-size:1.15em; margin:0; }
 .crop-stage{
   width:min(82vw,320px); height:min(82vw,320px);

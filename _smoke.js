@@ -333,12 +333,41 @@ check('ロックアイコンは🔒', byId('hd-lock').textContent === '🔒');
 check('回数ボタンの既定は「5かい」', byId('btn-tapn').textContent === '5かい');
 for(let i = 0; i < 5; i++) tapEl(byId('hd-lock'));   // 5連打
 check('5連打で解錠→つくる/せってい が出る', !created['tab-make'].classList.contains('hidden') && byId('hd-lock').textContent === '🔓');
+check('解錠中は鍵の横の案内が消える', byId('hd-lock-hint').classList.contains('hidden'));
 tapEl(byId('hd-lock'));   // 解錠中に誤ってヘッダーをもう一度タップ
 check('解錠中はヘッダータップでは施錠されない(誤タップ防止)', byId('hd-lock').textContent === '🔓' && !created['tab-make'].classList.contains('hidden'));
 tapEl(byId('btn-tapn'));
 check('回数ボタンで6かいに ふえる', byId('btn-tapn').textContent === '6かい');
 tapEl(byId('btn-lock-make'));
 check('つくるの「本人使用モードに もどす」で再施錠', created['tab-make'].classList.contains('hidden') && byId('hd-lock').textContent === '🔒');
+
+/* ---- [v0.1.4] 下タブ/ステータスバーに隠れない(セーフエリア対応) ----
+   targetSdk36(Android15+)はエッジtoエッジ強制で、画面がナビゲーションバーの下まで
+   描かれる。#tabbar と .focus-done は自分の余白に safe-area を持つので実際の高さが
+   増えるが、本文側がCSSの固定値だと足りず「1まいずつ みる」や「できた」が隠れる。 */
+console.log('[セーフエリア] 下タブ/ステータスバーに隠れない');
+const cssTxt = require('fs').readFileSync(__dirname + '/style.css', 'utf8').replace(/\s+/g, '');
+check('body の下余白が max(CSS下限, 実測+10px)',
+  /body\{[^}]*padding-bottom:max\(calc\(84px\+env\(safe-area-inset-bottom\)\),calc\(var\(--tabbar-h\)\+10px\)\)/.test(cssTxt));
+check('--tabbar-h のフォールバックに env(safe-area-inset-bottom)',
+  /--tabbar-h:calc\(84px\+env\(safe-area-inset-bottom\)\)/.test(cssTxt));
+check('ヘッダーの上余白に env(safe-area-inset-top)(時計と重ならない)',
+  /header#hd\{[^}]*padding:calc\(24px\+env\(safe-area-inset-top\)\)/.test(cssTxt));
+check('「できた」の下端に env(safe-area-inset-bottom)(ナビバーに食い込まない)',
+  /\.focus-done\{[^}]*bottom:calc\(16px\+env\(safe-area-inset-bottom\)\)/.test(cssTxt));
+check('しゅうちゅうの上余白に env(safe-area-inset-top)(「とじる」が時計と重ならない)',
+  /#focus-inner\{[^}]*padding:calc\(16px\+env\(safe-area-inset-top\)\)/.test(cssTxt));
+check('しゅうちゅうの下余白が max(CSS下限, 「できた」実測+28px)',
+  /#focus-inner\{[^}]*max\(calc\(100px\+env\(safe-area-inset-bottom\)\),calc\(var\(--focusdone-h\)\+28px\)\)/.test(cssTxt));
+check('トーストも --tabbar-h 基準', /\.toast\{[^}]*bottom:max\(calc\(96px\+env\(safe-area-inset-bottom\)\),calc\(var\(--tabbar-h\)\+12px\)\)/.test(cssTxt));
+check('トリミング画面もセーフエリア対応', /\.crop-inner\{[^}]*padding:calc\(20px\+env\(safe-area-inset-top\)\)/.test(cssTxt));
+const appTxt = require('fs').readFileSync(__dirname + '/app.js', 'utf8');
+check('applyBarSpace が下タブと「できた」の実寸を測っている',
+  /function applyBarSpace\(\)/.test(appTxt) &&
+  /getElementById\('tabbar'\), '--tabbar-h'/.test(appTxt) &&
+  /put\(done, '--focusdone-h'\)/.test(appTxt));
+check('ResizeObserver で箱を見張っている', /function watchBarSpace\(\)/.test(appTxt) && /new ResizeObserver\(applyBarSpace\)/.test(appTxt));
+check('しゅうちゅうを開いた時にも測り直す', /buildFocus\(\); acquireWake\(\);\s*\n\s*applyBarSpace\(\);/.test(appTxt));
 
 console.log('');
 if(ng){ console.error('SMOKE NG: ' + ng + '件 失敗 / OK ' + ok + '件'); process.exit(1); }

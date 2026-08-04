@@ -5,7 +5,7 @@
    ・その他(css/js/json/icon)はcache-first
    ・開発/検証用ファイル(_始まり)はキャッシュしない
    🔴 更新のたびに CACHE 名を必ず上げる(feedback-always-bump-version) */
-const CACHE = 'sched-v3';
+const CACHE = 'sched-v5';
 const ASSETS = [
   './',
   './index.html',

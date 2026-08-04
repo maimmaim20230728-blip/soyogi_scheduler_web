@@ -7,7 +7,7 @@
    ・カード語彙・テンプレは cards.js(ヒロさん監修前のたたき台)。仕様は SPEC_V1.md / DESIGN.md */
 (function(){
 
-const VER = '0.1.2';
+const VER = '0.1.4';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
 const LS_LABELS = 'sched.labels.v1';  // { 組み込みカードid: 上書きした言葉 }(各家庭で表現が違う対応)
@@ -364,6 +364,7 @@ function openFocus(){
   focusing = true; focusI = currentIndex();
   $('scr-focus').classList.remove('hidden');
   buildFocus(); acquireWake();
+  applyBarSpace();   // 「できた」が出てから実寸を測る(非表示のままだと高さ0で測れない)
 }
 function closeFocus(){
   focusing = false; Timer.stop();
@@ -579,7 +580,40 @@ function fillTplSelect(){
 
 /* ---- 見た目/音 ---- */
 function applyTheme(){ document.body.setAttribute('data-theme', pref.theme); }
-function applyBodyClass(){ document.body.className = 'fs' + pref.fs + ' cs' + pref.cardSize; }
+function applyBodyClass(){
+  document.body.className = 'fs' + pref.fs + ' cs' + pref.cardSize;
+  applyBarSpace();   // 文字を大きくするとタブも「できた」も高くなる → 余白を測り直す
+}
+
+/* ---- 下タブと「できた」ボタンの高さを実測して余白に反映 ----
+   targetSdk36(Android15+)はエッジtoエッジ強制で、画面がナビゲーションバーの下まで
+   描かれる。#tabbar と .focus-done は自分の padding/bottom に safe-area を持つので
+   その分だけ実際の高さが増えるが、本文側の余白がCSSの固定値だと足りず、
+   「1まいずつ みる」や「できた」が隠れてしまう。高さは文字サイズ・言語でも変わるため実測する。 */
+function applyBarSpace(){
+  const st = document.documentElement && document.documentElement.style;
+  if(!st || !st.setProperty) return;
+  const put = (el, name) => {
+    if(!el || !el.getBoundingClientRect) return;
+    const h = Math.ceil(el.getBoundingClientRect().height);
+    if(h > 0) st.setProperty(name, h + 'px');
+  };
+  put(document.getElementById('tabbar'), '--tabbar-h');
+  const done = document.getElementById('btn-focus-done');
+  /* 非表示(display:none)だと高さ0で測れないので、その時は据え置く */
+  if(done && !done.classList.contains('hidden')) put(done, '--focusdone-h');
+}
+/* 実寸が変わった瞬間に測り直す。フォント読み込み・画面回転・文字サイズ変更の
+   どれで変わっても取りこぼさないよう、イベント頼みでなく箱そのものを見張る。 */
+function watchBarSpace(){
+  if(typeof ResizeObserver === 'undefined') return false;
+  try{
+    const ro = new ResizeObserver(applyBarSpace);
+    const tb = document.getElementById('tabbar'); if(tb) ro.observe(tb);
+    const fd = document.getElementById('btn-focus-done'); if(fd) ro.observe(fd);
+    return true;
+  }catch(_){ return false; }
+}
 function applySoundPrefs(){
   Sound.setEnabled(pref.sound);
   if(pref.bgm !== 'off') Sound.setBgmMode(pref.bgm);
@@ -606,6 +640,7 @@ function applyI18n(){
   const ct = $('custom-text'); if(ct) ct.placeholder = T('make.customText');
   fillTplSelect();
   renderToday(); renderCats(); renderPalette(); renderPlanList();
+  applyBarSpace();   // 言語でタブのラベル幅が変わる(折り返しで高さが増える)ため測り直す
 }
 function applyAll(){
   applyBodyClass();
@@ -615,6 +650,14 @@ function applyAll(){
   Timer.setStyle(pref.timerStyle);
   $('set-lang').value = pref.lang;
   applyI18n();
+  applyBarSpace();
+  watchBarSpace();
+  /* ResizeObserver が無い環境(古いWebView)向けの保険 */
+  if(typeof window !== 'undefined' && window.addEventListener){
+    window.addEventListener('load', applyBarSpace);
+    window.addEventListener('resize', applyBarSpace);
+    window.addEventListener('orientationchange', applyBarSpace);
+  }
 }
 
 /* ---- 機種変更(バックアップ)・おうち介護記録の方式流用 ---- */
