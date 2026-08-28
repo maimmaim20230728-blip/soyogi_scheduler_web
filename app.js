@@ -7,7 +7,7 @@
    ・カード語彙・テンプレは cards.js(ヒロさん監修前のたたき台)。仕様は SPEC_V1.md / DESIGN.md */
 (function(){
 
-const VER = '0.1.4';
+const VER = '0.1.5';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
 const LS_LABELS = 'sched.labels.v1';  // { 組み込みカードid: 上書きした言葉 }(各家庭で表現が違う対応)
