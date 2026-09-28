@@ -9,7 +9,7 @@
      文字は i18n.js の howto(store/_i18n_howto/merge.js で差し込み) */
 (function(){
 
-const VER = '0.2.0';
+const VER = '0.2.1';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_HOWTO  = 'sched.howto.v1';   // v0.2 やりかた { lists:[{ id:'h1', name, kind:'steps'|'place'|'route', steps:[{ text, img }], updated }] }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
@@ -396,11 +396,15 @@ function focusDone(){
 /* ---- 読み上げ(v0.2)。Play版のWebViewはWeb Speech APIが無いので、端末の読み上げへ橋渡しする
    (@capacitor-community/text-to-speech・新アプリ8本のキットと同じ方式)。Web版はブラウザの読み上げ ---- */
 const TTS_LANG = { ja:'ja-JP', en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES', it:'it-IT', pt:'pt-PT', nl:'nl-NL', sv:'sv-SE', ko:'ko-KR', zh:'zh-CN', ar:'ar-SA' };
+/* 🔴 registerPlugin は @capacitor/core の関数で、バンドラ無しの WebView には無い(native-bridge.js に無い)。
+   ネイティブが注入する Capacitor.Plugins.TextToSpeech を使う(2026-09-28 判明。registerPlugin だけを見ていた 0.2.0 はPlay版で無音) */
 const NATIVE_TTS = (function(){
   try{
     const c = window.Capacitor;
-    if(c && typeof c.isNativePlatform === 'function' && c.isNativePlatform() && typeof c.registerPlugin === 'function'){
-      return c.registerPlugin('TextToSpeech');
+    if(c && typeof c.isNativePlatform === 'function' && c.isNativePlatform()){
+      const p = c.Plugins && c.Plugins.TextToSpeech;
+      if(p && typeof p.speak === 'function') return p;
+      if(typeof c.registerPlugin === 'function') return c.registerPlugin('TextToSpeech');
     }
   }catch(_){}
   return null;

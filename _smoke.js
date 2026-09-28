@@ -484,7 +484,8 @@ check('en: タブ How-to・しゅるい Route', created['tab-howto'].textContent
 created['set-lang'].value = 'ja'; fire(created['set-lang'], 'change');
 tapEl(byId('btn-lock'));
 check('本人使用モードに もどすと なおす が消える', countClass(created['howto-list'], 'hw-edit') === 0);
-check('app.js の VER は 0.2.0', /const VER = '0\.2\.0'/.test(appTxt));
+check('app.js の VER は 0.2.1', /const VER = '0\.2\.1'/.test(appTxt));
+check('Play版の読み上げは Plugins.TextToSpeech を見る(WebView に registerPlugin は無い)', /c\.Plugins && c\.Plugins\.TextToSpeech/.test(appTxt));
 
 console.log('');
 if(ng){ console.error('SMOKE NG: ' + ng + '件 失敗 / OK ' + ok + '件'); process.exit(1); }
