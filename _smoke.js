@@ -369,6 +369,123 @@ check('applyBarSpace が下タブと「できた」の実寸を測っている',
 check('ResizeObserver で箱を見張っている', /function watchBarSpace\(\)/.test(appTxt) && /new ResizeObserver\(applyBarSpace\)/.test(appTxt));
 check('しゅうちゅうを開いた時にも測り直す', /buildFocus\(\); acquireWake\(\);\s*\n\s*applyBarSpace\(\);/.test(appTxt));
 
+/* ---- [v0.2] やりかた モード ----
+   名前付きで複数保存・カードは消えず まえ/つぎ/できた・最後は おわりました・段ごとの写真(よこなが/しかく)・読み上げ・
+   見るのは本人使用モードでも/つくるのは作成モードだけ・よていは上書きしない・バックアップ(ver1も読める) */
+console.log('[v0.2] やりかた モード');
+const HOWTO = () => evalCtx('JSON.parse(localStorage.getItem("sched.howto.v1") || "null")');
+const planBeforeHowto = evalCtx('localStorage.getItem("sched.plan.v1")');
+check('本人使用モードでも「やりかた」タブは見える', !created['tab-howto'].classList.contains('hidden') && created['tab-make'].classList.contains('hidden'));
+check('タブの ことば(ja)=やりかた', created['tab-howto'].textContent === 'やりかた');
+tapEl(created['tab-howto']);
+check('やりかた画面へ', !created['scr-howto'].classList.contains('hidden') && created['scr-today'].classList.contains('hidden'));
+check('見本「てを あらう」が1つ(5だん)', countClass(created['howto-list'], 'hw-item') === 1 && allText(created['howto-list']).indexOf('てを あらう') >= 0 && allText(created['howto-list']).indexOf('5だん') >= 0);
+check('本人使用モードでは なおす/けす/あたらしく つくる が出ない', countClass(created['howto-list'], 'hw-edit') === 0 && created['howto-make'].classList.contains('hidden'));
+/* 見る: 全画面・1だんめ */
+tapEl(findByClass(created['howto-list'], 'hw-open'));
+check('タップで全画面の やりかた が開く', !created['scr-play'].classList.contains('hidden'));
+check('1だんめ「みずを だす」・1 / 5', created['play-text'].textContent === 'みずを だす' && created['play-count'].textContent === '1 / 5');
+check('写真のない段は 番号を大きく出す', (findByClass(created['play-face'], 'play-num') || {}).textContent === '1');
+check('1だんめでは「まえ」が うすい(押せない)', created['play-prev'].classList.contains('off'));
+check('点(ドット)が5つ', countClass(created['play-dots'], 'play-dot') === 5);
+tapEl(created['play-prev']);
+check('1だんめで まえ を押しても動かない', created['play-count'].textContent === '1 / 5');
+tapEl(created['play-next']);
+check('つぎ で 2だんめ(できた にはならない)', created['play-text'].textContent === 'せっけんを つける' && created['play-check'].classList.contains('hidden'));
+tapEl(created['play-prev']);
+check('まえ で 1だんめに もどれる(カードは消えない)', created['play-text'].textContent === 'みずを だす');
+tapEl(created['play-done']);
+check('できた で つぎの段へ進む', created['play-count'].textContent === '2 / 5');
+tapEl(created['play-prev']);
+check('できた段に もどると ✓ が出る', !created['play-check'].classList.contains('hidden'));
+for(let i = 0; i < 5; i++) tapEl(created['play-done']);
+check('最後の段で できた →「おわりました」', !created['play-end'].classList.contains('hidden') && created['play-nav'].classList.contains('hidden') && created['play-end-title'].textContent.indexOf('おわりました') >= 0);
+tapEl(created['play-again']);
+check('さいしょから で 1だんめ・✓ も消える', created['play-count'].textContent === '1 / 5' && created['play-check'].classList.contains('hidden'));
+check('読み上げの無い端末では 🔊 を出さない', created['play-speak'].classList.contains('hidden'));
+tapEl(created['play-close']);
+check('とじる で閉じる', created['scr-play'].classList.contains('hidden'));
+check('見るだけでは保存しない(見本は まだ保存されていない)', HOWTO() === null);
+check('やりかた を見ても よてい は変わらない', evalCtx('localStorage.getItem("sched.plan.v1")') === planBeforeHowto);
+/* 読み上げ(ブラウザの読み上げがある端末) */
+const spoken = [];
+sandbox.speechSynthesis = { cancel(){}, speak(u){ spoken.push(u.text); }, getVoices(){ return []; } };
+sandbox.SpeechSynthesisUtterance = function(t){ this.text = t; };
+tapEl(findByClass(created['howto-list'], 'hw-open'));
+check('読み上げのある端末では 🔊 が出る', !created['play-speak'].classList.contains('hidden'));
+check('既定(ボタンで)は 開いただけでは読まない', spoken.length === 0);
+tapEl(created['play-speak']);
+check('🔊 で いまの段を読む', spoken[0] === 'みずを だす');
+tapEl(created['play-close']);
+/* 作成モードで つくる */
+for(let i = 0; i < 6; i++) tapEl(byId('hd-lock'));   // 回数は上で6に変えてある
+check('作成モードで なおす/けす/あたらしく つくる が出る', countClass(created['howto-list'], 'hw-edit') === 1 && !created['howto-make'].classList.contains('hidden'));
+check('しゅるいは3つ(てじゅん/ばしょの よしゅう/みちじゅん)', countClass(created['howto-kinds'], 'hw-kind') === 3 && allText(created['howto-kinds']).indexOf('みちじゅん') >= 0);
+tapEl(findByClass(created['howto-kinds'], 'hw-kind'));   // てじゅん
+check('あたらしく つくる → すぐ なおす画面(3だん・名前=てじゅん)', !created['howto-editor'].classList.contains('hidden') && countClass(created['hw-steps'], 'hw-row') === 3 && created['hw-name'].value === 'てじゅん');
+check('保存される(見本+新しい1つ=2つ)', HOWTO().lists.length === 2);
+check('段の書き方の例(てじゅん)=することを かく', (findByClass(created['hw-steps'], 'hw-text') || {}).placeholder === 'することを かく');
+created['hw-name'].value = 'せんたく'; fire(created['hw-name'], 'change');
+const t0 = findByClass(created['hw-steps'], 'hw-text');
+t0.value = 'せんざいを いれる'; fire(t0, 'change');
+tapEl(created['hw-add']);
+check('＋ だんを ふやす で4だんに', countClass(created['hw-steps'], 'hw-row') === 4 && HOWTO().lists[1].steps.length === 4);
+check('名前と段のことばが保存される', HOWTO().lists[1].name === 'せんたく' && HOWTO().lists[1].steps[0].text === 'せんざいを いれる');
+/* 段の写真: よこなが(4:3)で切り出す */
+tapEl(findByClass(created['hw-steps'], 'hw-photo'));
+sandbox.Image = function(){ this.width = 40; this.height = 30; const self = this; Object.defineProperty(this, 'src', { set(v){ self._src = v; if(self.onload) self.onload(); }, get(){ return self._src; } }); };
+fire(byId('hw-photo-file'), 'change', { target:{ files:[{ name:'w.jpg' }], value:'' } });
+check('段の写真 → トリミング画面(よこなが の切りかえが出る)', !created['scr-crop'].classList.contains('hidden') && !created['crop-shape'].classList.contains('hidden') && created['crop-shape'].textContent.indexOf('よこなが') >= 0);
+check('横長の写真は よこなが(4:3)の枠から始まる', created['crop-canvas'].width === 320 && created['crop-canvas'].height === 240 && created['crop-stage'].classList.contains('wide'));
+tapEl(created['crop-shape']);
+check('切りかえで しかく(正方形)の枠に', created['crop-canvas'].width === 300 && created['crop-canvas'].height === 300 && !created['crop-stage'].classList.contains('wide'));
+tapEl(created['crop-shape']);
+tapEl(byId('crop-ok'));
+check('これで つくる → 1だんめに写真が入る', HOWTO().lists[1].steps[0].img === 'data:image/jpeg;base64,MOCK' && created['scr-crop'].classList.contains('hidden'));
+check('なおす画面の1だんめに写真が出る', !!findByClass(created['hw-steps'], 'hw-face') && findByClass(created['hw-steps'], 'hw-face').tagName === 'IMG');
+check('カードの写真は これまでどおり正方形(じぶんカードに ふえない)', evalCtx('JSON.parse(localStorage.getItem("sched.cards.v1")).length') >= 0);
+/* 並べかえ・けす */
+const rows0 = created['hw-steps'].children;
+tapEl(findByClass(rows0[0], 'mv del'));   // 1だんめを けす
+check('✕ で段を けす(3だんに)', HOWTO().lists[1].steps.length === 3);
+tapEl(created['hw-finish']);
+check('できあがり で一覧に もどる(2つ)', created['howto-editor'].classList.contains('hidden') && countClass(created['howto-list'], 'hw-item') === 2 && allText(created['howto-list']).indexOf('せんたく') >= 0);
+/* じどうで読み上げ */
+tapEl(created['tab-set']);
+tapEl(created['btn-howto-auto']);
+check('せってい: やりかたの よみあげ → じどう', created['btn-howto-auto'].textContent === 'じどう');
+tapEl(created['tab-howto']);
+spoken.length = 0;
+tapEl(findByClass(created['howto-list'], 'hw-open'));   // 見本
+check('じどう では 開いたら読む', spoken[0] === 'みずを だす');
+tapEl(created['play-next']);
+check('じどう では 段を かえるたびに読む', spoken[1] === 'せっけんを つける');
+tapEl(created['play-close']);
+/* けす(2段階) */
+const delBtn2 = findByClass(created['howto-list'], 'hw-del');
+tapEl(delBtn2);
+check('けす 1回目は「ほんとうに けす?」になるだけ', HOWTO().lists.length === 2 && allText(created['howto-list']).indexOf('ほんとうに けす?') >= 0);
+tapEl(findByClass(created['howto-list'], 'hw-del'));
+check('けす 2回目で消える', HOWTO().lists.length === 1 && HOWTO().lists[0].name === 'せんたく');
+/* バックアップ: やりかた も入る / ver1(やりかた無し)は今の やりかた を残す / ver2 は差し替え */
+tapEl(created['tab-set']);
+tapEl(created['bk-export']);
+const bk2 = JSON.parse(sandbox.__lastBlob.parts.join(''));
+check('バックアップに やりかた が入る(ver2)', bk2.ver === 2 && bk2.howto && bk2.howto.lists.length === 1 && bk2.howto.lists[0].name === 'せんたく' && bk2.howto.lists[0].steps.length === 3);
+fire(created['bk-file'], 'change', { target:{ files:[{ _text: JSON.stringify({ app:'soyogi_scheduler', ver:1, plan:{ items:[] }, cards:[], prefs:{} }) }], value:'' } });
+check('ver1 のファイルを読んでも やりかた は残る', HOWTO().lists.length === 1 && HOWTO().lists[0].name === 'せんたく');
+fire(created['bk-file'], 'change', { target:{ files:[{ _text: JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[] }, cards:[], prefs:{},
+  howto:{ lists:[ { id:'h1', name:'バスで びょういん', kind:'route', steps:[{ text:'バスていに いく' }, { text:'びょういん まえで おりる', img:'javascript:alert(1)' }] } ] } }) }], value:'' } });
+check('ver2 のファイルで やりかた が差し替わる', HOWTO().lists.length === 1 && HOWTO().lists[0].name === 'バスで びょういん' && HOWTO().lists[0].kind === 'route');
+check('写真でない img(data:image 以外)は読み込まない', HOWTO().lists[0].steps[1].img === '');
+/* 英語: タブと しゅるい */
+created['set-lang'].value = 'en'; fire(created['set-lang'], 'change');
+check('en: タブ How-to・しゅるい Route', created['tab-howto'].textContent === 'How-to' && allText(created['howto-kinds']).indexOf('Route') >= 0);
+created['set-lang'].value = 'ja'; fire(created['set-lang'], 'change');
+tapEl(byId('btn-lock'));
+check('本人使用モードに もどすと なおす が消える', countClass(created['howto-list'], 'hw-edit') === 0);
+check('app.js の VER は 0.2.0', /const VER = '0\.2\.0'/.test(appTxt));
+
 console.log('');
 if(ng){ console.error('SMOKE NG: ' + ng + '件 失敗 / OK ' + ok + '件'); process.exit(1); }
 console.log('SMOKE OK: 全' + ok + '件 合格');

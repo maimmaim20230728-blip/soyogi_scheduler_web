@@ -61,6 +61,26 @@
     </div>
   </section>
 
+  <!-- やりかた(v0.2・ひとつのことの手順を1だんずつ。見るのは本人使用モードでも・つくるのは作成モードだけ) -->
+  <section id="scr-howto" class="screen hidden">
+    <div id="howto-home">
+      <h2 id="howto-title" class="scr-title">やりかた</h2>
+      <div id="howto-list" class="howto-list"></div>
+      <div id="howto-make" class="howto-make hidden">
+        <h2 id="howto-new-head" class="sec-h">あたらしく つくる</h2>
+        <p id="howto-new-hint" class="hint">しゅるいを えらぶと、あたらしい やりかたが できます。</p>
+        <div id="howto-kinds" class="howto-kinds"></div>
+      </div>
+    </div>
+    <div id="howto-editor" class="howto-editor hidden">
+      <input id="hw-name" type="text" maxlength="30" placeholder="なまえを いれる">
+      <div id="hw-steps" class="hw-steps"></div>
+      <button id="hw-add" class="ghost-btn hw-add">＋ だんを ふやす</button>
+      <button id="hw-finish" class="wide-btn hw-finish">できあがり</button>
+      <input id="hw-photo-file" type="file" accept="image/*" class="hidden">
+    </div>
+  </section>
+
   <!-- つくる(支援者が予定を組む) -->
   <section id="scr-make" class="screen hidden">
     <p id="make-hint" class="edit-hint">カードを おすと、よていに ついかされます。</p>
@@ -127,6 +147,7 @@
     <div class="set-row"><span id="lbl-theme">いろ</span><button id="btn-theme" class="set-btn"></button></div>
     <div class="set-row"><span id="lbl-bgm">BGM</span><button id="btn-bgm" class="set-btn"></button></div>
     <div class="set-row"><span id="lbl-sound">タップ音</span><button id="btn-sound" class="set-btn"></button></div>
+    <div class="set-row"><span id="lbl-howto-auto">やりかたの よみあげ</span><button id="btn-howto-auto" class="set-btn"></button></div>
 
     <h2 id="set-h-show" class="sec-h">タイマーの せってい</h2>
     <div class="set-row"><span id="lbl-timer">タイマーの みせかた</span><button id="btn-timer" class="set-btn"></button></div>
@@ -170,14 +191,47 @@
   </div>
 </section>
 
+<!-- やりかたを みる(1だんずつ・全画面。カードは消えず まえ/つぎ/できた で行き来・最後は おわりました) -->
+<section id="scr-play" class="focus-overlay hidden">
+  <div id="play-inner">
+    <div class="play-top">
+      <button id="play-close" class="ctrl-btn">とじる</button>
+      <span id="play-name" class="play-name"></span>
+      <span id="play-count" class="play-count"></span>
+    </div>
+    <div id="play-body" class="play-body">
+      <div id="play-card" class="play-card">
+        <div id="play-face" class="play-face"></div>
+        <div id="play-text" class="play-text"></div>
+        <div id="play-check" class="play-check hidden">✓</div>
+      </div>
+      <button id="play-speak" class="ghost-btn play-speak">🔊 よみあげ</button>
+      <div id="play-dots" class="play-dots"></div>
+    </div>
+    <div id="play-end" class="play-end hidden">
+      <div id="play-end-title" class="play-end-title">✓ おわりました</div>
+      <div class="play-end-btns">
+        <button id="play-again" class="wide-btn">さいしょから</button>
+        <button id="play-end-close" class="ghost-btn">とじる</button>
+      </div>
+    </div>
+    <div id="play-nav" class="play-nav">
+      <button id="play-prev" class="ghost-btn play-prev">まえ</button>
+      <button id="play-done" class="wide-btn play-done">できた</button>
+      <button id="play-next" class="ghost-btn play-next">つぎ</button>
+    </div>
+  </div>
+</section>
+
 <!-- しゃしんの トリミング(全画面) -->
 <section id="scr-crop" class="crop-overlay hidden">
   <div class="crop-inner">
     <h2 id="crop-title" class="crop-title">しゃしんを あわせる</h2>
     <p id="crop-hint" class="hint">ゆびで うごかして、スライダーで 大きさを あわせてください。</p>
-    <div class="crop-stage">
+    <div id="crop-stage" class="crop-stage">
       <canvas id="crop-canvas" width="300" height="300"></canvas>
     </div>
+    <button id="crop-shape" class="set-btn crop-shape hidden"></button>
     <div class="crop-zoom">
       <span aria-hidden="true">🔍</span>
       <input id="crop-range" type="range" min="100" max="300" value="100" aria-label="zoom">
@@ -191,6 +245,7 @@
 
 <nav id="tabbar">
   <button id="tab-today" class="tab active">よてい</button>
+  <button id="tab-howto" class="tab">やりかた</button>
   <button id="tab-make" class="tab">つくる</button>
   <button id="tab-set" class="tab">せってい</button>
 </nav>

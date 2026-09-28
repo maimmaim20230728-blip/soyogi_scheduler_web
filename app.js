@@ -4,11 +4,14 @@
    ・中核: 絵カードを順に並べ、「いま」1件を大きく見せ、タップで「おわった」へ。あと◯こを可視化(TEACCH)
    ・click禁止: 操作は全て Tap.bind(tap.js)。select/file input だけはネイティブイベント
    ・成人の尊厳を保つ(大げさな褒め演出・得点化はしない)。完了は静かな音+チェックのみ
-   ・カード語彙・テンプレは cards.js(ヒロさん監修前のたたき台)。仕様は SPEC_V1.md / DESIGN.md */
+   ・カード語彙・テンプレは cards.js(ヒロさん監修前のたたき台)。仕様は SPEC_V1.md / DESIGN.md
+   ・v0.2: タブ「やりかた」= ひとつのことの手順を写真つきで1だんずつ(名前つきで複数保存・まえ/つぎ/できた・読み上げ)。
+     文字は i18n.js の howto(store/_i18n_howto/merge.js で差し込み) */
 (function(){
 
-const VER = '0.1.5';
+const VER = '0.2.0';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
+const LS_HOWTO  = 'sched.howto.v1';   // v0.2 やりかた { lists:[{ id:'h1', name, kind:'steps'|'place'|'route', steps:[{ text, img }], updated }] }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
 const LS_LABELS = 'sched.labels.v1';  // { 組み込みカードid: 上書きした言葉 }(各家庭で表現が違う対応)
 const LS_PREF   = 'sched.pref.v1';
@@ -56,7 +59,8 @@ function sanitizePref(p){
     fadeSec:  (p.fadeSec  >= 0 && p.fadeSec  <= 5) ? (p.fadeSec  | 0) : 2,         // 消える(フェードアウト)秒数(0〜5・既定2)
     slideSec: (p.slideSec >= 0 && p.slideSec <= 5) ? (p.slideSec | 0) : 1,         // 消えたあと つぎが上がる秒数(0〜5・既定1)
     showText: (p.showText === undefined) ? true : !!p.showText,                    // カードに文字を出すか(字が読めない人向けにOFF可・既定ON)
-    showCount: (p.showCount === undefined) ? true : !!p.showCount                  // 「あと なんこ」バッジを出すか(不安な人向けにOFF可・既定ON)
+    showCount: (p.showCount === undefined) ? true : !!p.showCount,                 // 「あと なんこ」バッジを出すか(不安な人向けにOFF可・既定ON)
+    howtoAuto: !!p.howtoAuto                                                       // やりかたの段を じどうで よみあげるか(既定=ボタンで)
   };
 }
 let pref = sanitizePref(loadJSON(LS_PREF));
@@ -89,7 +93,12 @@ const I18N_MAP = {
   'link-privacy':'set.privacy', 'about-credit':'set.credit',
   'focus-close':'focus.close', 'focus-next-label':'focus.next',
   'crop-title':'make.cropTitle', 'crop-hint':'make.cropHint', 'crop-cancel':'make.cropCancel', 'crop-ok':'make.cropOk',
-  'tab-today':'tab.today', 'tab-make':'tab.make', 'tab-set':'tab.set'
+  'tab-today':'tab.today', 'tab-make':'tab.make', 'tab-set':'tab.set',
+  /* v0.2 やりかた */
+  'tab-howto':'howto.tab', 'howto-title':'howto.title', 'howto-new-head':'howto.newHead', 'howto-new-hint':'howto.newHint',
+  'hw-add':'howto.addStep', 'hw-finish':'howto.finish', 'lbl-howto-auto':'howto.setAuto',
+  'play-close':'howto.close', 'play-speak':'howto.speak', 'play-prev':'howto.prev', 'play-next':'howto.next',
+  'play-done':'howto.done', 'play-again':'howto.again', 'play-end-close':'howto.close'
 };
 
 /* ---- カタログ解決(組み込みカード or 自作カード) ---- */
@@ -143,14 +152,16 @@ function currentIndex(){ return plan.items.findIndex(it => !it.done); }
 function remainingCount(){ return plan.items.filter(it => !it.done).length; }
 
 /* ---- 画面切替 ---- */
-const SCREENS = { 'scr-today':'tab-today', 'scr-make':'tab-make', 'scr-set':'tab-set' };
+const SCREENS = { 'scr-today':'tab-today', 'scr-howto':'tab-howto', 'scr-make':'tab-make', 'scr-set':'tab-set' };
 function showScreen(id){
   if(id !== 'scr-today') ptStop();   // よてい以外へ移ったらカードタイマーは止める
+  if(id !== 'scr-howto'){ hwEditing = null; hwDelArm = null; }   // やりかたの編集は画面を離れたら閉じる(中身は保存ずみ)
   for(const s in SCREENS){
     $(s).classList.toggle('hidden', s !== id);
     $(SCREENS[s]).classList.toggle('active', s === id);
   }
   if(id === 'scr-today') renderToday();
+  if(id === 'scr-howto') renderHowto();
   if(id === 'scr-make'){ renderCats(); renderPalette(); renderPlanList(); }
 }
 
@@ -165,8 +176,8 @@ function applyLock(){
   $('hd-lock').textContent = locked ? '🔒' : '🔓';
   const hh = $('hd-lock-hint'); if(hh) hh.classList.toggle('hidden', !locked);   // 施錠中だけ案内を出す(初見で積まない)
 }
-function unlock(){ if(!locked) return; locked = false; applyLock(); Sound.ding('done'); toast(T('lock.unlocked')); }
-function lock(){ locked = true; showScreen('scr-today'); applyLock(); toast(T('lock.locked')); }
+function unlock(){ if(!locked) return; locked = false; applyLock(); renderHowto(); Sound.ding('done'); toast(T('lock.unlocked')); }
+function lock(){ locked = true; hwEditing = null; hwDelArm = null; showScreen('scr-today'); applyLock(); renderHowto(); toast(T('lock.locked')); }
 /* 🔒の連打で解錠(回数=pref.tapUnlock・3〜10)。連打の間隔が TAP_WINDOW を超えたら数え直し。
    解錠中の1タップで再施錠。長押しは使わない(ヒロ指定=連打方式) */
 let tapCount = 0, lastTap = 0;
@@ -310,13 +321,14 @@ function resetPlan(){
 
 /* ---- しゅうちゅう(1まいずつ・全画面・タイマー) ---- */
 let focusI = -1, focusing = false, wakeLock = null;
+let playing = false;   // やりかたを みている(v0.2)。画面を消さない対象に しゅうちゅう と同じく含める
 
 function acquireWake(){
   try{
     if(navigator.wakeLock && navigator.wakeLock.request){
       navigator.wakeLock.request('screen').then(l => {
         wakeLock = l;
-        if(!focusing){ try{ l.release(); }catch(_){} wakeLock = null; }
+        if(!focusing && !playing){ try{ l.release(); }catch(_){} wakeLock = null; }
       }).catch(() => { wakeLock = null; });
     }
   }catch(_){ wakeLock = null; }
@@ -379,6 +391,271 @@ function focusDone(){
   }
   focusI = currentIndex();
   buildFocus();
+}
+
+/* ---- 読み上げ(v0.2)。Play版のWebViewはWeb Speech APIが無いので、端末の読み上げへ橋渡しする
+   (@capacitor-community/text-to-speech・新アプリ8本のキットと同じ方式)。Web版はブラウザの読み上げ ---- */
+const TTS_LANG = { ja:'ja-JP', en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES', it:'it-IT', pt:'pt-PT', nl:'nl-NL', sv:'sv-SE', ko:'ko-KR', zh:'zh-CN', ar:'ar-SA' };
+const NATIVE_TTS = (function(){
+  try{
+    const c = window.Capacitor;
+    if(c && typeof c.isNativePlatform === 'function' && c.isNativePlatform() && typeof c.registerPlugin === 'function'){
+      return c.registerPlugin('TextToSpeech');
+    }
+  }catch(_){}
+  return null;
+})();
+function canSpeak(){ return !!(NATIVE_TTS || (typeof window !== 'undefined' && window.speechSynthesis && typeof SpeechSynthesisUtterance !== 'undefined')); }
+function speak(text){
+  if(!text) return false;
+  const tag = TTS_LANG[pref.lang] || 'ja-JP';
+  if(NATIVE_TTS){
+    try{
+      NATIVE_TTS.stop().catch(() => {}).then(() => {
+        NATIVE_TTS.speak({ text:String(text), lang:tag, rate:0.9, pitch:1.0, volume:1.0 }).catch(() => {});
+      });
+    }catch(_){}
+    return true;
+  }
+  if(!canSpeak()) return false;
+  try{
+    const synth = window.speechSynthesis; synth.cancel();
+    const u = new SpeechSynthesisUtterance(String(text));
+    u.lang = tag; u.rate = 0.9;
+    try{
+      const vs = synth.getVoices ? synth.getVoices() : [];
+      const v = vs.find(x => x.lang === tag) || vs.find(x => String(x.lang).split('-')[0] === tag.split('-')[0]);
+      if(v) u.voice = v;
+    }catch(_){}
+    synth.speak(u);
+    return true;
+  }catch(_){ return false; }
+}
+function stopSpeak(){
+  try{ if(NATIVE_TTS) NATIVE_TTS.stop().catch(() => {}); }catch(_){}
+  try{ if(typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
+}
+
+/* ---- やりかた(v0.2・案24「見通しとやってみせ手順帳」)
+   ・ひとつのことの手順を、1だんずつ写真と ことばで見せる。名前をつけて いくつでも保存(きょうの よていは上書きしない)
+   ・カードは消えない。「まえ/つぎ/できた」で行き来し、最後の段の「できた」で「おわりました」(ヒロさん決定 9/28)
+   ・見るのは本人使用モードでも、つくる・なおすは作成モードだけ
+   ・しゅるい(てじゅん/ばしょの よしゅう/みちじゅん)は名前と書き方の例がちがうだけで、しくみは同じ ---- */
+const HOWTO_KINDS = ['steps','place','route'];
+function seedHowto(){
+  // 初回だけ見本を1つ(空っぽで戸惑わせない=よていの あさのしたく と同じ考え)。保存するまでは言語に合わせて作り直す
+  const s = T('howto.sample');
+  return { lists:[ { id:'h1', name:s.name, kind:'steps', steps:s.steps.map(t => ({ text:t, img:'' })), updated:0 } ] };
+}
+function sanitizeHowto(h){
+  if(!h || !Array.isArray(h.lists)) return null;
+  const seen = {};
+  const lists = h.lists.filter(l => l && typeof l === 'object').map((l, i) => {
+    let id = String(l.id || '');
+    if(!/^h\d+$/.test(id) || seen[id]) id = 'h' + (1000 + i);
+    seen[id] = 1;
+    return {
+      id, name:String(l.name || '').slice(0, 30),
+      kind: HOWTO_KINDS.indexOf(l.kind) >= 0 ? l.kind : 'steps',
+      steps: Array.isArray(l.steps) ? l.steps.filter(s => s && typeof s === 'object').map(s => ({
+        text:String(s.text || '').slice(0, 40),
+        img:(typeof s.img === 'string' && /^data:image\//.test(s.img)) ? s.img : ''
+      })) : [],
+      updated: +l.updated || 0
+    };
+  });
+  return { lists };
+}
+let howto = sanitizeHowto(loadJSON(LS_HOWTO)) || seedHowto();
+function saveHowto(){ return saveJSON(LS_HOWTO, howto); }
+function findHowto(id){ return howto.lists.find(l => l.id === id) || null; }
+function newHowtoId(){
+  let m = 0;
+  howto.lists.forEach(l => { const n = parseInt(String(l.id).slice(1), 10); if(n > m) m = n; });
+  return 'h' + (m + 1);
+}
+function howtoName(l){ return l.name || T('howto.kinds.' + l.kind); }
+function imgEl(cls, src){ const im = document.createElement('img'); im.className = cls; im.src = src; im.alt = ''; return im; }
+
+let hwEditing = null;   // 編集中の やりかた id(作成モードのときだけ)
+let hwDelArm = null;    // 2段階で消す: 1回目で「ほんとうに けす?」、2回目で消す
+let hwPhotoTarget = null;
+
+function renderHowto(){
+  const editing = !locked && hwEditing ? findHowto(hwEditing) : null;
+  if(!editing) hwEditing = null;
+  $('howto-home').classList.toggle('hidden', !!editing);
+  $('howto-editor').classList.toggle('hidden', !editing);
+  if(editing){ renderHowtoEditor(); return; }
+  const box = $('howto-list'); box.textContent = '';
+  if(!howto.lists.length) box.appendChild(el('div', 'today-empty', T('howto.empty')));
+  howto.lists.forEach(l => {
+    const row = el('div', 'hw-item');
+    const b = el('button', 'hw-open');
+    const first = l.steps.find(s => s.img);
+    b.appendChild(first ? imgEl('hw-thumb isimg', first.img) : el('span', 'hw-thumb hw-thumb-icon', '📋'));
+    const tx = el('span', 'hw-open-text');
+    tx.appendChild(el('span', 'hw-open-name', howtoName(l)));
+    tx.appendChild(el('span', 'hw-open-n', T('howto.stepsN').replace('{n}', String(l.steps.length))));
+    b.appendChild(tx);
+    Tap.bind(b, () => openPlay(l.id));
+    row.appendChild(b);
+    if(!locked){
+      const tools = el('div', 'hw-tools');
+      const ed = el('button', 'set-btn hw-edit', T('howto.edit'));
+      Tap.bind(ed, () => { hwEditing = l.id; hwDelArm = null; renderHowto(); });
+      const del = el('button', 'ghost-btn hw-del' + (hwDelArm === l.id ? ' armed' : ''), hwDelArm === l.id ? T('howto.delConfirm') : T('howto.del'));
+      Tap.bind(del, () => deleteHowto(l.id));
+      tools.appendChild(ed); tools.appendChild(del);
+      row.appendChild(tools);
+    }
+    box.appendChild(row);
+  });
+  $('howto-make').classList.toggle('hidden', locked);
+  const kinds = $('howto-kinds'); kinds.textContent = '';
+  HOWTO_KINDS.forEach(k => {
+    const b = el('button', 'set-btn hw-kind', '＋ ' + T('howto.kinds.' + k));
+    Tap.bind(b, () => createHowto(k));
+    kinds.appendChild(b);
+  });
+}
+function deleteHowto(id){
+  if(hwDelArm !== id){ hwDelArm = id; renderHowto(); return; }
+  hwDelArm = null;
+  howto.lists = howto.lists.filter(l => l.id !== id);
+  saveHowto(); renderHowto(); toast(T('howto.deleted'));
+}
+function createHowto(kind){
+  const base = T('howto.kinds.' + kind);
+  let name = base, n = 2;
+  while(howto.lists.some(l => l.name === name)) name = base + ' ' + (n++);
+  const l = { id:newHowtoId(), name, kind, steps:[{ text:'', img:'' }, { text:'', img:'' }, { text:'', img:'' }], updated:Date.now() };
+  howto.lists.push(l);
+  if(!saveHowto()){ howto.lists.pop(); toast(T('make.storageFull')); return; }
+  hwEditing = l.id; hwDelArm = null; renderHowto();
+}
+function touchHowto(l){ l.updated = Date.now(); if(!saveHowto()) toast(T('make.storageFull')); }
+function moveStep(l, i, dir){
+  const j = i + dir;
+  if(j < 0 || j >= l.steps.length) return;
+  const t = l.steps[i]; l.steps[i] = l.steps[j]; l.steps[j] = t;
+  touchHowto(l); renderHowtoEditor();
+}
+function renderHowtoEditor(){
+  const l = findHowto(hwEditing); if(!l) return;
+  const nm = $('hw-name'); nm.value = l.name; nm.placeholder = T('howto.namePh');
+  const box = $('hw-steps'); box.textContent = '';
+  l.steps.forEach((s, i) => {
+    const row = el('div', 'hw-row');
+    row.appendChild(s.img ? imgEl('hw-face isimg', s.img) : el('span', 'hw-face hw-num', String(i + 1)));
+    const mid = el('div', 'hw-mid');
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'pl-edit hw-text'; inp.maxLength = 40;
+    inp.value = s.text; inp.placeholder = T('howto.stepPh.' + l.kind);
+    inp.addEventListener('change', () => { s.text = (inp.value || '').trim(); touchHowto(l); });
+    mid.appendChild(inp);
+    const btns = el('div', 'hw-btns');
+    const ph = el('button', 'mv hw-photo', T('howto.photo'));
+    Tap.bind(ph, () => { hwPhotoTarget = { listId:l.id, idx:i }; $('hw-photo-file').click(); });
+    btns.appendChild(ph);
+    if(s.img){
+      const off = el('button', 'mv hw-photo-off', T('howto.photoOff'));
+      Tap.bind(off, () => { s.img = ''; touchHowto(l); renderHowtoEditor(); });
+      btns.appendChild(off);
+    }
+    const up = el('button', 'mv', '▲'); Tap.bind(up, () => moveStep(l, i, -1));
+    const dn = el('button', 'mv', '▼'); Tap.bind(dn, () => moveStep(l, i, 1));
+    const del = el('button', 'mv del', '✕'); Tap.bind(del, () => { l.steps.splice(i, 1); touchHowto(l); renderHowtoEditor(); });
+    btns.appendChild(up); btns.appendChild(dn); btns.appendChild(del);
+    mid.appendChild(btns);
+    row.appendChild(mid);
+    box.appendChild(row);
+  });
+}
+function addHowtoStep(){
+  const l = findHowto(hwEditing); if(!l) return;
+  l.steps.push({ text:'', img:'' }); touchHowto(l); renderHowtoEditor();
+}
+function renameHowto(){
+  const l = findHowto(hwEditing); if(!l) return;
+  l.name = ($('hw-name').value || '').trim().slice(0, 30) || T('howto.kinds.' + l.kind);
+  touchHowto(l);
+}
+function finishHowto(){ renameHowto(); hwEditing = null; renderHowto(); }
+function onStepPhotoFile(e){
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if(!f || !hwPhotoTarget) return;
+  const target = hwPhotoTarget;
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = () => openCrop(img, url, 'step', target);
+  img.onerror = () => { try{ URL.revokeObjectURL(url); }catch(_){} toast(T('make.photoFail')); };
+  img.src = url;
+}
+function setStepPhoto(t, data){
+  const l = t && findHowto(t.listId);
+  if(!l || !l.steps[t.idx]) return;
+  const old = l.steps[t.idx].img;
+  l.steps[t.idx].img = data;
+  l.updated = Date.now();
+  if(!saveHowto()){ l.steps[t.idx].img = old; toast(T('make.storageFull')); }
+  renderHowtoEditor();
+}
+
+/* ---- やりかたを みる(全画面・1だんずつ) ---- */
+let playList = null, playIdx = 0, playDone = [], playEnded = false;
+function openPlay(id){
+  const l = findHowto(id); if(!l) return;
+  if(!l.steps.length){ toast(T('howto.noSteps')); return; }
+  ptStop();
+  playList = l; playIdx = 0; playDone = l.steps.map(() => false); playEnded = false; playing = true;
+  $('scr-play').classList.remove('hidden');
+  renderPlay(); acquireWake();
+}
+function closePlay(){
+  playing = false; stopSpeak();
+  $('scr-play').classList.add('hidden');
+  releaseWake(); playList = null;
+}
+function renderPlay(){
+  const l = playList; if(!l) return;
+  const n = l.steps.length;
+  $('play-name').textContent = howtoName(l);
+  $('play-body').classList.toggle('hidden', playEnded);
+  $('play-nav').classList.toggle('hidden', playEnded);
+  $('play-end').classList.toggle('hidden', !playEnded);
+  $('play-count').classList.toggle('hidden', playEnded || !pref.showCount);
+  if(playEnded){ $('play-end-title').textContent = '✓ ' + T('howto.endTitle'); stopSpeak(); return; }
+  const s = l.steps[playIdx];
+  $('play-count').textContent = T('howto.count').replace('{i}', String(playIdx + 1)).replace('{n}', String(n));
+  const face = $('play-face'); face.textContent = '';
+  face.appendChild(s.img ? imgEl('play-img', s.img) : el('span', 'play-num', String(playIdx + 1)));
+  const showTx = pref.showText && !!s.text;   // 文字なし設定なら絵(写真)と読み上げだけ
+  const txt = $('play-text'); txt.textContent = showTx ? s.text : ''; txt.classList.toggle('hidden', !showTx);
+  $('play-check').classList.toggle('hidden', !playDone[playIdx]);
+  $('play-speak').classList.toggle('hidden', !s.text || !canSpeak());
+  $('play-prev').classList.toggle('off', playIdx === 0);
+  $('play-next').classList.toggle('off', playIdx >= n - 1);
+  const dots = $('play-dots'); dots.textContent = '';
+  dots.classList.toggle('hidden', !pref.showCount || n > 30);
+  l.steps.forEach((_, i) => dots.appendChild(el('span', 'play-dot' + (i === playIdx ? ' cur' : '') + (playDone[i] ? ' done' : ''))));
+  if(pref.howtoAuto && s.text) speak(s.text); else stopSpeak();
+}
+function playPrev(){ if(playList && playIdx > 0){ playIdx--; renderPlay(); } }
+function playNext(){ if(playList && playIdx < playList.steps.length - 1){ playIdx++; renderPlay(); } }
+function playDoneStep(){
+  if(!playList || playEnded) return;
+  playDone[playIdx] = true;
+  Sound.ding('done'); vibrate(30);
+  if(playIdx < playList.steps.length - 1) playIdx++;
+  else playEnded = true;   // 最後の段の「できた」=おわりました
+  renderPlay();
+}
+function playAgain(){ if(!playList) return; playIdx = 0; playDone = playList.steps.map(() => false); playEnded = false; renderPlay(); }
+function playSpeakNow(){
+  const s = playList && playList.steps[playIdx];
+  if(s && s.text && !speak(s.text)) toast(T('howto.noSpeech'));
 }
 
 /* ---- つくる(支援者が予定を組む) ---- */
@@ -500,53 +777,79 @@ function onPhotoFile(e){
    ・正方形の枠に対して、指で位置合わせ(pan) + スライダーで大きさ(zoom)を調整
    ・「これで つくる」で枠の中身を 256px 正方形の JPEG に切り出してカード化(端末内のみ) */
 const CROP_V = 300, CROP_OUT = 256;
+/* v0.2: やりかたの段の写真は よこなが(4:3)も切り出せる。カードの写真は これまでどおり正方形 256px */
+const STEP_WIDE = { vw:320, vh:240, ow:480, oh:360 }, STEP_SQUARE = { vw:300, vh:300, ow:360, oh:360 };
 let cropImg = null, cropUrl = null, cropCtx = null;
 let cropZoom = 1, cropBase = 1, cropOx = 0, cropOy = 0, cropDrag = null;
+let cropW = CROP_V, cropH = CROP_V, cropMode = 'card', cropShape = 0, cropTarget = null;   // cropShape: 0=よこなが 1=しかく(段の写真だけ)
 
 function cropDrawnW(){ return (cropImg.width  || 1) * cropBase * cropZoom; }
 function cropDrawnH(){ return (cropImg.height || 1) * cropBase * cropZoom; }
 function clampCrop(){
-  cropOx = Math.min(0, Math.max(CROP_V - cropDrawnW(), cropOx));
-  cropOy = Math.min(0, Math.max(CROP_V - cropDrawnH(), cropOy));
+  cropOx = Math.min(0, Math.max(cropW - cropDrawnW(), cropOx));
+  cropOy = Math.min(0, Math.max(cropH - cropDrawnH(), cropOy));
 }
 function drawCrop(){
   if(!cropCtx || !cropImg) return;
-  cropCtx.clearRect(0, 0, CROP_V, CROP_V);
+  cropCtx.clearRect(0, 0, cropW, cropH);
   cropCtx.drawImage(cropImg, 0, 0, cropImg.width, cropImg.height, cropOx, cropOy, cropDrawnW(), cropDrawnH());
 }
-function openCrop(img, url){
-  cropImg = img; cropUrl = url || null;
-  const cv = $('crop-canvas'); cropCtx = (cv && cv.getContext) ? cv.getContext('2d') : null;
-  cropBase = CROP_V / Math.max(1, Math.min(img.width || 1, img.height || 1));   // 短辺が枠を満たす(cover)
+function stepFrame(){ return cropShape === 0 ? STEP_WIDE : STEP_SQUARE; }
+/* 枠の大きさを決めて、写真を枠いっぱい(cover)・中央に置き直す */
+function resetCrop(){
+  if(cropMode === 'step'){ const f = stepFrame(); cropW = f.vw; cropH = f.vh; }
+  else { cropW = CROP_V; cropH = CROP_V; }
+  const cv = $('crop-canvas');
+  if(cv){ cv.width = cropW; cv.height = cropH; cropCtx = cv.getContext ? cv.getContext('2d') : null; }
+  const stage = $('crop-stage'); if(stage) stage.classList.toggle('wide', cropW !== cropH);
+  const sb = $('crop-shape');
+  if(sb){ sb.classList.toggle('hidden', cropMode !== 'step'); sb.textContent = '⇄ ' + T('howto.shapes')[cropShape]; }
+  cropBase = Math.max(cropW / Math.max(1, cropImg.width || 1), cropH / Math.max(1, cropImg.height || 1));   // 枠いっぱい(cover)
   cropZoom = 1;
   const range = $('crop-range'); if(range) range.value = '100';
-  cropOx = (CROP_V - cropDrawnW()) / 2;
-  cropOy = (CROP_V - cropDrawnH()) / 2;
+  cropOx = (cropW - cropDrawnW()) / 2;
+  cropOy = (cropH - cropDrawnH()) / 2;
   clampCrop(); drawCrop();
+}
+function openCrop(img, url, mode, target){
+  cropImg = img; cropUrl = url || null;
+  cropMode = mode === 'step' ? 'step' : 'card';
+  cropTarget = target || null;
+  cropShape = ((img.width || 1) >= (img.height || 1)) ? 0 : 1;   // 横長の写真は よこなが、縦長は しかく から始める
+  resetCrop();
   $('scr-crop').classList.remove('hidden');
+}
+function toggleCropShape(){
+  if(!cropImg || cropMode !== 'step') return;
+  cropShape = cropShape === 0 ? 1 : 0;
+  resetCrop();
 }
 function closeCrop(){
   $('scr-crop').classList.add('hidden');
   if(cropUrl){ try{ URL.revokeObjectURL(cropUrl); }catch(_){} }
-  cropImg = null; cropUrl = null; cropCtx = null; cropDrag = null;
+  cropImg = null; cropUrl = null; cropCtx = null; cropDrag = null; cropTarget = null;
 }
 function cropZoomTo(v){
   const nz = Math.max(1, Math.min(3, (v || 100) / 100));
   const ow = cropDrawnW(), oh = cropDrawnH();
   cropZoom = nz;
   // 枠の中心を保ったまま拡大縮小する(急に飛ばない)
-  cropOx = CROP_V / 2 - (CROP_V / 2 - cropOx) * (cropDrawnW() / ow);
-  cropOy = CROP_V / 2 - (CROP_V / 2 - cropOy) * (cropDrawnH() / oh);
+  cropOx = cropW / 2 - (cropW / 2 - cropOx) * (cropDrawnW() / ow);
+  cropOy = cropH / 2 - (cropH / 2 - cropOy) * (cropDrawnH() / oh);
   clampCrop(); drawCrop();
 }
 function cropConfirm(){
   try{
-    const out = document.createElement('canvas'); out.width = CROP_OUT; out.height = CROP_OUT;
+    const step = cropMode === 'step';
+    const f = step ? stepFrame() : null;
+    const outW = step ? f.ow : CROP_OUT, outH = step ? f.oh : CROP_OUT;
+    const out = document.createElement('canvas'); out.width = outW; out.height = outH;
     const octx = out.getContext('2d');
-    const s = CROP_OUT / CROP_V;
+    const s = outW / cropW;
     octx.drawImage(cropImg, 0, 0, cropImg.width, cropImg.height,
       cropOx * s, cropOy * s, cropDrawnW() * s, cropDrawnH() * s);
-    const data = out.toDataURL('image/jpeg', 0.85);
+    const data = out.toDataURL('image/jpeg', step ? 0.8 : 0.85);
+    if(step){ const t = cropTarget; closeCrop(); setStepPhoto(t, data); return; }
     const txt = ($('custom-text').value || '').trim() || T('make.photoLabel');
     closeCrop();
     pushCustom({ id: nextCustomId(), img: data, text: txt });
@@ -560,7 +863,7 @@ function bindCropDrag(){
     if(!cropDrag) return;
     let disp = CROP_V;
     if(cv.getBoundingClientRect){ const r = cv.getBoundingClientRect(); if(r && r.width) disp = r.width; }
-    const s = CROP_V / disp;                                   // 表示px → 内部px
+    const s = cropW / disp;                                    // 表示px → 内部px
     cropOx += (e.clientX - cropDrag.x) * s;
     cropOy += (e.clientY - cropDrag.y) * s;
     cropDrag = { x:e.clientX, y:e.clientY };
@@ -636,10 +939,13 @@ function applyI18n(){
   $('btn-timer').textContent = T('set.timerStyles')[TIMER_STYLES.indexOf(pref.timerStyle)];
   $('btn-vol').textContent   = T('set.vols')[pref.vol];
   $('btn-tapn').textContent  = pref.tapUnlock + T('lock.times');
+  $('btn-howto-auto').textContent = T('howto.autoOpts')[pref.howtoAuto ? 1 : 0];
   $('about-ver').textContent = 'v' + VER;
   const ct = $('custom-text'); if(ct) ct.placeholder = T('make.customText');
   fillTplSelect();
-  renderToday(); renderCats(); renderPalette(); renderPlanList();
+  if(loadJSON(LS_HOWTO) == null) howto = seedHowto();   // まだ保存していない見本は、ことばを変えたら その言語で作り直す
+  renderToday(); renderCats(); renderPalette(); renderPlanList(); renderHowto();
+  if(playing) renderPlay();
   applyBarSpace();   // 言語でタブのラベル幅が変わる(折り返しで高さが増える)ため測り直す
 }
 function applyAll(){
@@ -662,7 +968,7 @@ function applyAll(){
 
 /* ---- 機種変更(バックアップ)・おうち介護記録の方式流用 ---- */
 function exportBackup(){
-  const data = { app:'soyogi_scheduler', ver:1, plan, cards: customStore, labels: labelStore, prefs: pref };
+  const data = { app:'soyogi_scheduler', ver:2, plan, cards: customStore, labels: labelStore, prefs: pref, howto };   // ver2=やりかた入り(ver1のファイルも読める)
   const blob = new Blob([JSON.stringify(data)], { type:'application/json' });
   const a = document.createElement('a');
   const d = new Date();
@@ -684,6 +990,8 @@ function importBackup(e){
       if(d.plan && Array.isArray(d.plan.items)){ plan = d.plan; saveJSON(LS_PLAN, plan); }
       if(Array.isArray(d.cards)){ customStore = d.cards; saveCustom(); }
       if(d.labels && typeof d.labels === 'object'){ labelStore = d.labels; saveLabels(); }
+      if(d.howto){ const h = sanitizeHowto(d.howto); if(h){ howto = h; saveHowto(); } }   // やりかたの無い古いファイル(ver1)は今の やりかた をそのまま残す
+      hwEditing = null; hwDelArm = null;
       pref = sanitizePref(d.prefs); savePref();
       curCat = CAT.CATEGORIES[0].id;
       applyAll();
@@ -710,7 +1018,23 @@ function init(){
   Timer.onEnd(() => { Sound.ding('timeup'); $('focus-timer-wrap').classList.add('alarm'); });
 
   Tap.bind($('tab-today'), () => showScreen('scr-today'));
+  Tap.bind($('tab-howto'), () => showScreen('scr-howto'));
   Tap.bind($('tab-make'),  () => showScreen('scr-make'));
+
+  /* やりかた(v0.2) */
+  Tap.bind($('hw-add'), addHowtoStep);
+  Tap.bind($('hw-finish'), finishHowto);
+  $('hw-name').addEventListener('change', renameHowto);
+  $('hw-photo-file').addEventListener('change', onStepPhotoFile);
+  Tap.bind($('play-close'), closePlay);
+  Tap.bind($('play-end-close'), closePlay);
+  Tap.bind($('play-prev'), playPrev);
+  Tap.bind($('play-next'), playNext);
+  Tap.bind($('play-done'), playDoneStep);
+  Tap.bind($('play-again'), playAgain);
+  Tap.bind($('play-speak'), playSpeakNow);
+  Tap.bind($('crop-shape'), toggleCropShape);
+  Tap.bind($('btn-howto-auto'), () => { pref.howtoAuto = !pref.howtoAuto; savePref(); applyI18n(); });
   Tap.bind($('tab-set'),   () => showScreen('scr-set'));
 
   Tap.bind($('hd-lock'), onLockTap);
@@ -785,7 +1109,7 @@ function init(){
 
   if(document.addEventListener){
     document.addEventListener('visibilitychange', () => {
-      if(focusing && !wakeLock && document.visibilityState === 'visible') acquireWake();
+      if((focusing || playing) && !wakeLock && document.visibilityState === 'visible') acquireWake();
     });
   }
 

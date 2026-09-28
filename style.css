@@ -55,7 +55,9 @@ header#hd{
   padding:calc(24px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
           24px max(16px, env(safe-area-inset-left));
   min-height:calc(128px + env(safe-area-inset-top));
-  font-weight:700; font-size:1.05em;
+  /* ヘッダーの文字は もじの大きさ設定に追従させない(ふつう時と同じ19px)。
+     追従させると「とても大きい」で 鍵の案内+🔒+ことば が画面の右へ40pxはみ出していた(v0.1.5 まで) */
+  font-weight:700; font-size:19px;
   display:flex; align-items:center; justify-content:space-between; gap:10px;
 }
 #hd-title{ flex:1; min-width:2.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -172,6 +174,102 @@ body.cs2 .sct-n{ font-size:2.05em; }
   min-height:60px; padding:0 16px; background:var(--card); color:var(--sub);
   border:2px solid var(--line); border-radius:14px; font-size:1em; font-weight:700; font-family:inherit;
 }
+
+/* ======== やりかた(v0.2) ======== */
+.howto-list{ display:flex; flex-direction:column; gap:12px; margin-top:12px; }
+.hw-item{
+  background:var(--card); border:3px solid var(--line); border-radius:20px; padding:12px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.hw-open{
+  display:flex; align-items:center; gap:14px; width:100%; min-height:88px;
+  background:none; border:none; padding:0; color:var(--ink); font-family:inherit; text-align:start;
+}
+.hw-thumb{ flex-shrink:0; width:84px; height:84px; border-radius:14px; }
+.hw-thumb.isimg{ object-fit:cover; }
+.hw-thumb-icon{ display:flex; align-items:center; justify-content:center; font-size:2.6em; background:var(--bg); }
+.hw-open-text{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.hw-open-name{ font-size:1.35em; font-weight:800; overflow-wrap:anywhere; }
+.hw-open-n{ color:var(--sub); font-weight:700; }
+.hw-tools{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+.hw-tools .set-btn{ min-width:0; padding:0 18px; }
+.hw-tools .ghost-btn{ min-height:48px; }
+.hw-del.armed{ border-color:var(--accent); color:var(--accent); }
+.howto-make{ margin-top:10px; }
+.howto-kinds{ display:flex; gap:8px; flex-wrap:wrap; }
+.howto-kinds .set-btn{ flex:1 1 auto; min-width:0; padding:0 14px; font-weight:700; }
+
+.howto-editor{ display:flex; flex-direction:column; gap:12px; }
+#hw-name{
+  width:100%; min-height:52px; font-size:1.15em; font-weight:800; font-family:inherit; padding:8px 12px;
+  border:2px solid var(--brand); border-radius:12px; background:var(--card); color:var(--ink);
+}
+.hw-steps{ display:flex; flex-direction:column; gap:10px; }
+.hw-row{
+  display:flex; align-items:flex-start; gap:10px;
+  background:var(--card); border:2px solid var(--line); border-radius:14px; padding:10px;
+}
+.hw-face{ flex-shrink:0; width:72px; height:72px; border-radius:12px; }
+.hw-face.isimg{ object-fit:cover; }
+.hw-num{
+  display:flex; align-items:center; justify-content:center;
+  background:var(--bg); border:2px solid var(--line); font-size:1.6em; font-weight:800; color:var(--sub);
+}
+.hw-mid{ flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; }
+.hw-mid .pl-edit{ width:100%; }
+.hw-btns{ display:flex; gap:6px; flex-wrap:wrap; }
+.hw-btns .mv{
+  min-width:44px; min-height:44px; border:2px solid var(--line); border-radius:8px;
+  background:var(--card); color:var(--ink); font-size:1em; font-family:inherit; padding:0 10px;
+}
+.hw-btns .mv.del{ border-color:var(--accent); color:var(--accent); }
+.hw-btns .hw-photo{ border-color:var(--accent); color:var(--accent); font-weight:700; }
+.hw-add{ width:100%; }
+.hw-finish{ width:100%; flex:none; }
+
+/* やりかたを みる(全画面)。「まえ/できた/つぎ」は本文の流れの最後に置く(固定にしない=文字を大きくしても重ならない) */
+#play-inner{
+  min-height:100%; display:flex; flex-direction:column; gap:12px;
+  padding:calc(16px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+          calc(20px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.play-top{ display:flex; align-items:center; gap:10px; }
+.play-name{ flex:1; min-width:0; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.play-count{ flex-shrink:0; font-weight:800; color:var(--brand); font-size:1.1em; font-variant-numeric:tabular-nums; }
+.play-body{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+.play-card{
+  position:relative; width:100%; background:var(--card); border:5px solid var(--brand); border-radius:24px;
+  padding:16px; display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center;
+}
+.play-face{ width:100%; display:flex; justify-content:center; }
+.play-img{ display:block; max-width:100%; max-height:46vh; border-radius:16px; object-fit:contain; }
+.play-num{
+  display:flex; align-items:center; justify-content:center;
+  width:1.6em; height:1.6em; border-radius:50%; background:var(--bg); border:3px solid var(--line);
+  font-size:4.2em; font-weight:800; color:var(--sub);
+}
+.play-text{ font-size:2em; font-weight:800; overflow-wrap:anywhere; line-height:1.4; }
+.play-check{
+  position:absolute; top:10px; inset-inline-end:12px;
+  width:48px; height:48px; border-radius:50%; background:var(--brand); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:1.6em; font-weight:800;
+}
+.play-speak{ min-height:52px; }
+.play-dots{ display:flex; flex-wrap:wrap; justify-content:center; gap:8px; max-width:100%; }
+.play-dot{ width:14px; height:14px; border-radius:50%; background:var(--line); }
+.play-dot.done{ background:var(--brand); opacity:.55; }
+.play-dot.cur{ background:var(--brand); opacity:1; transform:scale(1.35); }
+.play-nav{ display:flex; gap:10px; margin-top:auto; }
+.play-nav .ghost-btn{ flex:1; min-height:66px; font-size:1.05em; color:var(--ink); }
+.play-nav .wide-btn{ flex:1.6; min-height:66px; font-size:1.3em; }
+.play-nav .off{ opacity:.35; }
+.play-end{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; }
+.play-end-title{ font-size:1.8em; font-weight:800; color:var(--brand); text-align:center; }
+.play-end-btns{ display:flex; flex-direction:column; gap:12px; width:100%; max-width:420px; }
+.play-end-btns .wide-btn{ flex:none; }
+/* .hidden は上で定義した同じ強さのクラスに負けるので、display を持つ部品は個別に消す */
+.howto-editor.hidden, .play-body.hidden, .play-end.hidden, .play-nav.hidden, .play-count.hidden,
+.play-text.hidden, .play-check.hidden, .play-dots.hidden, .play-speak.hidden, .crop-shape.hidden{ display:none; }
 
 /* ======== つくる ======== */
 .edit-hint{
@@ -363,6 +461,9 @@ input[type="file"].hidden{ display:none; }
   border-radius:16px; overflow:hidden; background:#000;
   box-shadow:0 0 0 4px var(--brand);
 }
+/* v0.2: やりかたの段の写真は よこなが(4:3)の枠も使う */
+.crop-stage.wide{ height:calc(min(82vw,320px) * 0.75); }
+.crop-shape{ min-width:0; padding:0 18px; }
 #crop-canvas{ width:100%; height:100%; display:block; touch-action:none; }
 .crop-zoom{ display:flex; align-items:center; gap:12px; width:min(82vw,320px); font-size:1.2em; }
 #crop-range{ flex:1; height:40px; }
