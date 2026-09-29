@@ -9,7 +9,7 @@
      文字は i18n.js の howto(store/_i18n_howto/merge.js で差し込み) */
 (function(){
 
-const VER = '0.2.2';
+const VER = '0.2.3';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_HOWTO  = 'sched.howto.v1';   // v0.2 やりかた { lists:[{ id:'h1', name, kind:'steps'|'place'|'route', steps:[{ text, img }], updated }] }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
