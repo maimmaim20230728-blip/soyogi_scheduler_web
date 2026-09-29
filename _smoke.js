@@ -95,7 +95,9 @@ function countClass(node, cls){
 /* ---- sandbox ---- */
 const lsData = {
   /* 事前投入: 写真カード1枚(img描画パスの検証用) */
-  'sched.cards.v1': JSON.stringify([{ id:'u1', img:'data:image/jpeg;base64,TESTIMG', text:'しゃしんテスト' }])
+  'sched.cards.v1': JSON.stringify([{ id:'u1', img:'data:image/jpeg;base64,TESTIMG', text:'しゃしんテスト' }]),
+  /* はじめての つかいかた(2026-09-30)は「読んだ」扱いで起動する(今までの検査を そのまま通す)。案内そのものは [つかいかた] で見る */
+  'sched.guide.v1': 'true'
 };
 const sandbox = {
   console,
@@ -484,8 +486,40 @@ check('en: タブ How-to・しゅるい Route', created['tab-howto'].textContent
 created['set-lang'].value = 'ja'; fire(created['set-lang'], 'change');
 tapEl(byId('btn-lock'));
 check('本人使用モードに もどすと なおす が消える', countClass(created['howto-list'], 'hw-edit') === 0);
-check('app.js の VER は 0.2.3', /const VER = '0\.2\.3'/.test(appTxt));
+check('app.js の VER は 0.2.4', /const VER = '0\.2\.4'/.test(appTxt));
 check('Play版の読み上げは Plugins.TextToSpeech を見る(WebView に registerPlugin は無い)', /c\.Plugins && c\.Plugins\.TextToSpeech/.test(appTxt));
+
+/* ---- [つかいかた] はじめての つかいかた(2026-09-30) ----
+   まだ読んでいない端末(案内の しるしが無い)で起動すると案内が出て、読んだ端末では出ない。
+   ほんものの動き(ページ送り・戻る・全言語・ボタン名)は store/_back_check.js(ヘッドレスChrome)で見る */
+console.log('[つかいかた] はじめての つかいかた');
+const hasGuideOv = (node) => countClass(node, 'guide-ov') > 0;
+check('index.html: せっていに「つかいかた」の行とボタンがある', ids.has('set-guide-row') && ids.has('lbl-guide') && ids.has('btn-guide'));
+check('読んだ端末(種あり)では 案内は出ない', !hasGuideOv(sandbox.document.body));
+check('せっていの ことば: つかいかた / もういちど みる', byId('lbl-guide').textContent === 'つかいかた' && byId('btn-guide').textContent === 'もういちど みる');
+tapEl(byId('btn-guide'));
+check('「もういちど みる」で 案内が ひらく', hasGuideOv(sandbox.document.body));
+{
+  const fls = {};
+  const fdoc = Object.assign({}, sandbox.document, { body: makeEl('body'), documentElement: makeEl('html') });
+  const fsb = Object.assign({}, sandbox, { document: fdoc, localStorage: { getItem: k => (k in fls) ? fls[k] : null, setItem: (k, v) => { fls[k] = String(v); }, removeItem: k => { delete fls[k]; } } });
+  fsb.window = fsb;
+  vm.createContext(fsb);
+  let fok = true;
+  try{ for(const f of ['audio.js','tap.js','timer.js','i18n.js','cards.js','app.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + f, 'utf8'), fsb, { filename: f }); }
+  catch(e){ fok = false; console.error('    → ' + e.message); }
+  check('まだ読んでいない端末(空)で起動しても 例外なし', fok);
+  const gov = fok ? findByClass(fdoc.body, 'guide-ov') : null;
+  check('まだ読んでいない端末では 案内が出る(1 / 7・日本語)', !!gov && allText(gov).indexOf('1 / 7') >= 0 && allText(gov).indexOf('つかいかた') >= 0);
+  check('初回の案内のあいだ BGM は はじまらない(既定は BGM あり)', fok && vm.runInContext('Sound.bgmEnabled', fsb) === false);
+  const nextB = gov ? findByClass(gov, 'guide-next') : null;
+  for(let k = 0; k < 7 && nextB; k++) tapEl(nextB);
+  check('さいごの「はじめる」で「読んだ」が のこる(画面から消えるのは _back_check で見る)', !!gov && fls['sched.guide.v1'] === 'true');
+  check('とじたら BGM は せっていどおり(あり)', fok && vm.runInContext('Sound.bgmEnabled', fsb) === true);
+}
+const GJ = I18.ja.guide;
+check('案内: 12言語すべてに guide・ページは 5〜8(ja ' + (GJ ? GJ.bodies.length : 0) + 'ページ)', !!GJ && GJ.bodies.length >= 5 && GJ.bodies.length <= 8 &&
+  Object.keys(I18).length === 12 && Object.keys(I18).every(l => I18[l].guide && I18[l].guide.bodies.length === GJ.bodies.length && I18[l].guide.heads.length === GJ.bodies.length));
 
 console.log('');
 if(ng){ console.error('SMOKE NG: ' + ng + '件 失敗 / OK ' + ok + '件'); process.exit(1); }

@@ -9,7 +9,7 @@
      文字は i18n.js の howto(store/_i18n_howto/merge.js で差し込み) */
 (function(){
 
-const VER = '0.2.3';
+const VER = '0.2.4';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_HOWTO  = 'sched.howto.v1';   // v0.2 やりかた { lists:[{ id:'h1', name, kind:'steps'|'place'|'route', steps:[{ text, img }], updated }] }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
@@ -98,7 +98,9 @@ const I18N_MAP = {
   'tab-howto':'howto.tab', 'howto-title':'howto.title', 'howto-new-head':'howto.newHead', 'howto-new-hint':'howto.newHint',
   'hw-add':'howto.addStep', 'hw-finish':'howto.finish', 'lbl-howto-auto':'howto.setAuto',
   'play-close':'howto.close', 'play-speak':'howto.speak', 'play-prev':'howto.prev', 'play-next':'howto.next',
-  'play-done':'howto.done', 'play-again':'howto.again', 'play-end-close':'howto.close'
+  'play-done':'howto.done', 'play-again':'howto.again', 'play-end-close':'howto.close',
+  /* はじめての つかいかた(2026-09-30) */
+  'lbl-guide':'guide.title', 'btn-guide':'guide.again'
 };
 
 /* ---- カタログ解決(組み込みカード or 自作カード) ---- */
@@ -909,6 +911,7 @@ function applyBarSpace(){
   const done = document.getElementById('btn-focus-done');
   /* 非表示(display:none)だと高さ0で測れないので、その時は据え置く */
   if(done && !done.classList.contains('hidden')) put(done, '--focusdone-h');
+  if(guideOv && guideOv._fit) guideOv._fit();   // はじめての つかいかた の 下の帯も 測り直す(もじの大きさ・回転)
 }
 /* 実寸が変わった瞬間に測り直す。フォント読み込み・画面回転・文字サイズ変更の
    どれで変わっても取りこぼさないよう、イベント頼みでなく箱そのものを見張る。 */
@@ -924,7 +927,7 @@ function watchBarSpace(){
 function applySoundPrefs(){
   Sound.setEnabled(pref.sound);
   if(pref.bgm !== 'off') Sound.setBgmMode(pref.bgm);
-  Sound.setBgmEnabled(pref.bgm !== 'off');
+  Sound.setBgmEnabled(pref.bgm !== 'off' && !guideHold);   // はじめての つかいかた(初回)のあいだは BGM を かってに はじめない
 }
 
 function applyI18n(){
@@ -951,6 +954,7 @@ function applyI18n(){
   renderToday(); renderCats(); renderPalette(); renderPlanList(); renderHowto();
   if(playing) renderPlay();
   applyBarSpace();   // 言語でタブのラベル幅が変わる(折り返しで高さが増える)ため測り直す
+  if(guideOv && guideOv._draw) guideOv._draw();   // はじめての つかいかた も いまの ページのまま 訳し直す
 }
 function applyAll(){
   applyBodyClass();
@@ -1027,6 +1031,7 @@ function blurActive(){
 }
 function onBack(){
   blurActive();
+  if(guideOv){ guideOv._back(); return; }   // はじめての つかいかた: まえの ページ / 1ページ目は(初回)後ろに下げる・(せっていから)とじる
   if(isShown('scr-crop')){ closeCrop(); return; }
   if(isShown('scr-play')){ if(!playEnded && playIdx > 0) playPrev(); else closePlay(); return; }
   if(isShown('scr-focus')){ closeFocus(); return; }
@@ -1042,6 +1047,108 @@ function watchBack(){
   const ap = nativePlugin('App', 'addListener');
   if(!ap) return;
   try{ ap.addListener('backButton', () => onBack()); }catch(_){}
+}
+
+/* ---- はじめての つかいかた(初回の案内・2026-09-30) ----
+   ヒロさん「ひとつずつ・そよぎ みたいなタイプのアプリは、必ず最初に使い方の丁寧な説明を出してほしい。10代の情報室のように」。
+   ・初回起動で かならず出す(さいごまで よむまで、ひらくたびに出る)。前からの利用者にも 更新のあと 1回だけ出る
+   ・文字は i18n.js の guide(title / step / prev / next / start / again / heads[] / bodies[])= store/_i18n_guide/<lang>.json を merge.js で差し込み。
+     本文の {tab.today} などは その言語の画面の文字に さしかえる(ボタン名が画面と かならず同じ)。{tapN} は 作成モードに はいる タップの回数
+   ・1ページずつ「つぎ」「まえ」(Tap方式)。とじるのは さいごの ページの「はじめる」だけ(× は おかない)
+   ・戻るボタン(Play版): 2ページ目から=まえの ページ / 1ページ目=初回なら後ろに下げる(とじない)、せっていから ひらいたときは とじる
+   ・1ページ目に ことばの えらびかた(上の 🌐 と同じ ならび)。案内は 上の ことばの所も おおうため
+   ・初回の案内のあいだは BGM を かってに はじめない(Play版の WebView は 自動再生の制限が無く、ひらいた だけで鳴るため)。とじたら せっていどおり
+   ・読み終えたら sched.guide.v1 = true。せっていの「つかいかた」の「もういちど みる」で いつでも ひらける(せってい は 作成モード) */
+const LS_GUIDE = 'sched.guide.v1';
+let guideOv = null;     // 出ている案内(戻るボタン・ことばの切りかえ・帯の測り直しが見る)
+let guideHold = false;  // 初回の案内のあいだは BGM を はじめない
+function guideDone(){ return loadJSON(LS_GUIDE) === true; }
+function guideText(s){
+  return String(s == null ? '' : s).replace(/\{([A-Za-z0-9_.]+)\}/g, (m, key) => {
+    if(key === 'tapN') return String(pref.tapUnlock);
+    const v = T(key);
+    return (typeof v === 'string') ? v : m;   // 見つからなければ {…} のまま(試しで見つける)
+  });
+}
+function openGuide(first){
+  const g0 = T('guide');
+  if(guideOv || !g0 || !Array.isArray(g0.bodies) || !g0.bodies.length) return;
+  let i = 0;
+  const ov = el('div', 'guide-ov');
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  const box = el('div', 'guide-box'), top = el('div', 'guide-top');
+  const ttl = el('p', 'guide-title'), step = el('p', 'guide-step');
+  top.appendChild(ttl); top.appendChild(step);
+  const langRow = el('div', 'guide-lang'), langLbl = el('span', 'guide-lang-lbl');
+  const langSel = document.createElement('select');
+  langSel.setAttribute('aria-label', 'Language 言語');
+  const src = $('set-lang'), opts = (src && src.options) ? src.options : [];
+  for(let o = 0; o < opts.length; o++){
+    const op = document.createElement('option');
+    op.value = opts[o].value; op.textContent = opts[o].textContent;
+    langSel.appendChild(op);
+  }
+  langSel.addEventListener('change', () => {   // 上の ことばの所と 同じ(pref.lang → 保存 → 画面ぜんぶ 訳し直し)
+    if(LANGS.indexOf(langSel.value) < 0) return;
+    pref.lang = langSel.value; savePref();
+    $('set-lang').value = pref.lang;
+    applyI18n();
+  });
+  langRow.appendChild(langLbl); langRow.appendChild(langSel);
+  const h = el('h2', 'guide-h'), p = el('p', 'guide-p'), dots = el('div', 'guide-dots');
+  dots.setAttribute('aria-hidden', 'true');
+  const row = el('div', 'guide-row');
+  const prevB = el('button', 'ghost-btn guide-prev'), nextB = el('button', 'wide-btn guide-next');
+  prevB.type = 'button'; nextB.type = 'button';
+  row.appendChild(prevB); row.appendChild(nextB);
+  box.appendChild(top); box.appendChild(langRow); box.appendChild(h); box.appendChild(p); box.appendChild(dots);
+  ov.appendChild(box); ov.appendChild(row);
+  const cur = () => { const g = T('guide'); return (g && Array.isArray(g.bodies)) ? g : g0; };
+  /* 下の帯(まえ / つぎ)の実寸ぶん、本文の下を空ける(さいごの行が 帯に かくれない。もじの大きさ・ことばで 帯の高さが かわる) */
+  function fit(){
+    const r = row.getBoundingClientRect ? row.getBoundingClientRect() : null;
+    const hh = r ? Math.ceil(r.height) : 0;
+    if(hh > 0) ov.style.paddingBottom = (hh + 24) + 'px';
+  }
+  function draw(){
+    const g = cur(), n = g.bodies.length;
+    if(i > n - 1) i = n - 1;
+    ov.setAttribute('aria-label', g.title);
+    ttl.textContent = g.title;
+    step.textContent = String(g.step).replace('{n}', String(i + 1)).replace('{m}', String(n));
+    step.setAttribute('dir', 'ltr');   // 「1 / 7」は アラビア語でも 左から(「7 / 1」に見えないように)
+    langRow.style.display = (i === 0) ? '' : 'none';
+    langLbl.textContent = T('set.lang');
+    langSel.value = pref.lang;
+    h.textContent = guideText(g.heads[i]);
+    p.textContent = guideText(g.bodies[i]);
+    dots.textContent = '';
+    for(let k = 0; k < n; k++) dots.appendChild(el('span', 'guide-dot' + (k === i ? ' on' : '')));
+    prevB.textContent = g.prev;
+    prevB.style.visibility = (i === 0) ? 'hidden' : 'visible';   // 「つぎ」の位置を かえない
+    nextB.textContent = (i === n - 1) ? g.start : g.next;
+    ov.scrollTop = 0;
+    fit();
+  }
+  function close(){
+    if(ov.parentNode) ov.parentNode.removeChild(ov);
+    if(guideOv === ov) guideOv = null;
+    saveJSON(LS_GUIDE, true);
+    if(guideHold){ guideHold = false; applySoundPrefs(); }   // BGM は ここから せっていどおり(「はじめる」を押した 指の あと)
+  }
+  ov._draw = draw;
+  ov._fit = fit;
+  ov._back = () => {
+    if(i > 0){ i--; draw(); return; }
+    if(first) minimizeApp(); else close();
+  };
+  Tap.bind(prevB, () => { if(i > 0){ i--; draw(); } });
+  Tap.bind(nextB, () => { if(i < cur().bodies.length - 1){ i++; draw(); } else close(); });
+  guideOv = ov;
+  document.body.appendChild(ov);
+  draw();
+  try{ nextB.focus(); }catch(_){}
 }
 
 /* ---- 機種変更(バックアップ)・おうち介護記録の方式流用 ---- */
@@ -1200,10 +1307,15 @@ function init(){
     });
   }
 
+  Tap.bind($('btn-guide'), () => openGuide(false));   // せっていの「つかいかた」の「もういちど みる」
+
+  guideHold = !guideDone();   // はじめての つかいかた(初回)のあいだは BGM を かってに はじめない
   applyAll();
   showScreen('scr-today');
   applyLock();
   watchBack();   // Android の戻るボタン(Play版だけ)
+  if(!guideDone()) openGuide(true);   // はじめての つかいかた(読み終えるまで毎回・2026-09-30)
+  if(guideHold && !guideOv){ guideHold = false; applySoundPrefs(); }   // 案内が出せなかったときは BGM を ふだんどおりに
 
   /* Service Worker: 本番(https)だけ登録。localhost(開発)ではSWを使わず、
      既存の登録とキャッシュを消す = 更新しても「前の版」が出続ける問題を防ぐ(AAC方式) */
