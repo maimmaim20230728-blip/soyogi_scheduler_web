@@ -327,6 +327,20 @@ zh.howto = {"tab":"做法","title":"做法","empty":"还没有做法。可以在
 ar.howto = {"tab":"الإرشادات","title":"الإرشادات","empty":"لا توجد إرشادات بعد. يمكن إنشاؤها في وضع الإنشاء.","stepsN":"الخطوات: {n}","newHead":"إنشاء جديد","newHint":"اختر نوعًا لإنشاء إرشادات جديدة.","kinds":{"steps":"الخطوات","place":"التعرّف على المكان","route":"الطريق"},"stepPh":{"steps":"اكتب ما يجب فعله","place":"اكتب ما يُرى هناك","route":"اكتب علامة مميّزة"},"namePh":"أدخل اسمًا","addStep":"+ أضف خطوة","photo":"📷 صورة","photoOff":"إزالة الصورة","edit":"تعديل","del":"حذف","delConfirm":"هل تريد الحذف حقًا؟","deleted":"تم الحذف ✓","finish":"إنهاء التعديل","noSteps":"يُرجى إضافة خطوة","prev":"السابق","next":"التالي","done":"تمّ","close":"إغلاق","speak":"🔊 قراءة صوتية","count":"{i} / {n}","endTitle":"انتهى كل شيء","again":"البدء من جديد","setAuto":"القراءة الصوتية للإرشادات","autoOpts":["بالزر","تلقائيًا"],"noSpeech":"القراءة الصوتية غير متاحة على هذا الجهاز","shapes":["أفقي","مربّع"],"sample":{"name":"غسل اليدين","steps":["فتح الصنبور","وضع الصابون","فرك اليدين","الشطف بالماء","التجفيف بالمنشفة"]}};
 /* ---- /v0.2 やりかた モード ---- */
 
+/* ---- Play版の かきだす で 保存できなかったとき(2026-09-30・全12言語。新アプリ8本の common.saveFail と同じ訳) ---- */
+ja.set.saveFail = 'ほぞんできませんでした';
+en.set.saveFail = 'Could not save';
+de.set.saveFail = 'Speichern war nicht möglich';
+fr.set.saveFail = "Impossible d'enregistrer";
+es.set.saveFail = 'No se pudo guardar';
+it.set.saveFail = 'Non è stato possibile salvare';
+pt.set.saveFail = 'Não foi possível guardar';
+nl.set.saveFail = 'Opslaan is niet gelukt';
+sv.set.saveFail = 'Det gick inte att spara';
+ko.set.saveFail = '저장하지 못했어요';
+zh.set.saveFail = '无法保存';
+ar.set.saveFail = 'تعذّر الحفظ';
+
 window.SCHED_I18N = { ja: ja, en: en, de: de, fr: fr, es: es, it: it, pt: pt, nl: nl, sv: sv, ko: ko, zh: zh, ar: ar };
 
 })();

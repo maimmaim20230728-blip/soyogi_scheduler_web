@@ -9,7 +9,7 @@
      文字は i18n.js の howto(store/_i18n_howto/merge.js で差し込み) */
 (function(){
 
-const VER = '0.2.1';
+const VER = '0.2.2';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_HOWTO  = 'sched.howto.v1';   // v0.2 やりかた { lists:[{ id:'h1', name, kind:'steps'|'place'|'route', steps:[{ text, img }], updated }] }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
@@ -970,15 +970,98 @@ function applyAll(){
   }
 }
 
+/* ---- Play版(Capacitor)の部品(2026-09-30) ----
+   プラグインはネイティブが注入する Capacitor.Plugins.X を使う(registerPlugin は WebView には無い) */
+function isNativeApp(){
+  try{ const c = window.Capacitor; return !!(c && typeof c.isNativePlatform === 'function' && c.isNativePlatform()); }catch(_){ return false; }
+}
+function nativePlugin(name, fn){
+  try{
+    const c = window.Capacitor;
+    if(typeof c.isPluginAvailable === 'function' && !c.isPluginAvailable(name)) return null;
+    const p = c.Plugins && c.Plugins[name];
+    return (p && typeof p[fn] === 'function') ? p : null;
+  }catch(_){ return null; }
+}
+/* ファイルの保存: Capacitor の WebView には DownloadListener が無く、<a download> では何も保存されない(なのに「かきだしました」が出ていた)。
+   一時フォルダ(CACHE)に書いてから Android の共有の画面を出し、保存先は利用者が選ぶ。
+   done('ok')=送り先を選べた / done('quiet')=閉じた(何も出さない) / done('fail')=書けない・共有できない・プラグインが無い */
+function shareQuiet(err){
+  const m = String((err && (err.message || err.errorMessage)) || err || '');
+  return !!err && (err.name === 'AbortError' || /cancel|in progress/i.test(m));
+}
+function nativeSaveFile(name, data, utf8, label, done){
+  const fsp = nativePlugin('Filesystem', 'writeFile'), shp = nativePlugin('Share', 'share');
+  if(!fsp || !shp){ done('fail'); return; }
+  const opt = { path:name, data:data, directory:'CACHE' };
+  if(utf8) opt.encoding = 'utf8';
+  let w;
+  try{ w = fsp.writeFile(opt); }catch(_){ done('fail'); return; }
+  if(!w || typeof w.then !== 'function'){ done('fail'); return; }
+  w.then(r => {
+    if(!r || !r.uri){ done('fail'); return; }
+    let s;
+    try{ s = shp.share({ title:name, files:[r.uri], dialogTitle:label }); }catch(err){ done(shareQuiet(err) ? 'quiet' : 'fail'); return; }
+    if(s && typeof s.then === 'function') s.then(() => done('ok'), err => done(shareQuiet(err) ? 'quiet' : 'fail'));
+    else done('ok');
+  }, () => done('fail'));
+}
+function minimizeApp(){
+  const ap = nativePlugin('App', 'minimizeApp');
+  try{ if(ap){ const pr = ap.minimizeApp(); if(pr && pr.catch) pr.catch(() => {}); } }catch(_){}
+}
+
+/* ---- Android の戻るボタン(Play版だけ・2026-09-30) ----
+   @capacitor/app が無いと、戻るを押すと アプリごと後ろに下がっていた(Android 11 以前は閉じる)。押したときの順:
+   ①いちばん上の全画面: しゃしんの トリミング=やめる / やりかたを みる=2だん目より先なら まえ・1だん目と「おわりました」は とじる
+     / 1まいずつ みる(しゅうちゅう)=とじる
+   ②やりかた の「ほんとうに けす?」=けさずに もどす(いいえ) / やりかたを なおしている=できあがり と同じ
+   ③よてい 以外の画面(やりかた・つくる・せってい)=よてい へ(下のタブで よてい を押したのと同じ)
+   ④よてい=アプリを後ろに下げる(minimizeApp。よてい も タイマーも そのまま)
+   文字の欄は どれも change で すぐ保存される(やりかたの名前・だん・カードの言葉)。戻るの前に入力中の欄から
+   フォーカスを外して change を出すので、書いたことは消えない(確かめは出さない)。「じぶんで つくる」の ことばは
+   画面を かえても のこる。本人使用モードに もどす(施錠)は戻るでは しない。Web版(ブラウザ)は何も変えない */
+function isShown(id){ const e = $(id); return !!e && !e.classList.contains('hidden'); }
+function blurActive(){
+  try{ const a = document.activeElement; if(a && a !== document.body && typeof a.blur === 'function') a.blur(); }catch(_){}
+}
+function onBack(){
+  blurActive();
+  if(isShown('scr-crop')){ closeCrop(); return; }
+  if(isShown('scr-play')){ if(!playEnded && playIdx > 0) playPrev(); else closePlay(); return; }
+  if(isShown('scr-focus')){ closeFocus(); return; }
+  if(isShown('scr-howto')){
+    if(hwDelArm){ hwDelArm = null; renderHowto(); return; }
+    if(hwEditing && !locked){ finishHowto(); return; }
+  }
+  if(!isShown('scr-today')){ showScreen('scr-today'); return; }
+  minimizeApp();
+}
+function watchBack(){
+  if(!isNativeApp()) return;
+  const ap = nativePlugin('App', 'addListener');
+  if(!ap) return;
+  try{ ap.addListener('backButton', () => onBack()); }catch(_){}
+}
+
 /* ---- 機種変更(バックアップ)・おうち介護記録の方式流用 ---- */
 function exportBackup(){
   const data = { app:'soyogi_scheduler', ver:2, plan, cards: customStore, labels: labelStore, prefs: pref, howto };   // ver2=やりかた入り(ver1のファイルも読める)
+  const d = new Date();
+  const fname = 'soyogi-scheduler-' + d.getFullYear() +
+    String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + '.json';
+  /* Play版(2026-09-30): 一時フォルダに書いて共有の画面へ。選べたら「かきだしました」・閉じたら何も出さない・書けなければ「ほぞんできませんでした」 */
+  if(isNativeApp()){
+    nativeSaveFile(fname, JSON.stringify(data), true, T('set.bkExport'), r => {
+      if(r === 'ok') toast(T('set.exported'));
+      else if(r === 'fail') toast(T('set.saveFail'));
+    });
+    return;
+  }
   const blob = new Blob([JSON.stringify(data)], { type:'application/json' });
   const a = document.createElement('a');
-  const d = new Date();
   a.href = URL.createObjectURL(blob);
-  a.download = 'soyogi-scheduler-' + d.getFullYear() +
-    String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + '.json';
+  a.download = fname;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   toast(T('set.exported'));
@@ -1120,6 +1203,7 @@ function init(){
   applyAll();
   showScreen('scr-today');
   applyLock();
+  watchBack();   // Android の戻るボタン(Play版だけ)
 
   /* Service Worker: 本番(https)だけ登録。localhost(開発)ではSWを使わず、
      既存の登録とキャッシュを消す = 更新しても「前の版」が出続ける問題を防ぐ(AAC方式) */

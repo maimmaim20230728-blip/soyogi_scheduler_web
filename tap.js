@@ -15,6 +15,26 @@
    ========================================================= */
 const Tap = (() => {
   const MOVE_LIMIT = 36;   // これ以上ずれたら「迷い/スクロール」とみなし発火しない
+  /* 👻 あとから来るクリックを捨てる(2026-09-30・新アプリ8本のキットと同じ):
+     pointerup で発火して画面が切り替わると、同じ指の あとから来る mousedown / mouseup / click が
+     「新しい画面の同じ位置にある要素」に当たる(入力欄にフォーカスが入って キーボードが出る・選ぶ欄が開く など)。
+     pointerup で発火したあと 700ms 以内・MOVE_LIMIT px 以内の mousedown / mouseup / click(本物の指のもの)を
+     document で捨てる(click を捨てたら終わり)。pointer イベントは捨てないので、すぐ次のタップは今までどおり効く。
+     アプリが呼ぶ el.click()(写真・ファイルを選ぶ窓を開く)は isTrusted=false なので捨てない */
+  let ghost = null;
+  function isGhost(e){
+    if(!ghost || !e.isTrusted) return false;
+    if(Date.now() > ghost.until){ ghost = null; return false; }
+    return Math.hypot((e.clientX || 0) - ghost.x, (e.clientY || 0) - ghost.y) <= MOVE_LIMIT;
+  }
+  if(typeof document !== 'undefined' && document.addEventListener){
+    ['mousedown', 'mouseup', 'click'].forEach(type => document.addEventListener(type, e => {
+      if(!isGhost(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if(type === 'click') ghost = null;
+    }, true));
+  }
   function bind(el, fn, opts){
     const o = opts || {};
     el.style.touchAction = o.game ? 'none' : 'manipulation';
@@ -32,7 +52,10 @@ const Tap = (() => {
       if(e.pointerId !== pid) return;
       pid = null;
       el.classList.remove('pressing');
-      if(Math.hypot(e.clientX - sx, e.clientY - sy) <= MOVE_LIMIT) fn(e);
+      if(Math.hypot(e.clientX - sx, e.clientY - sy) <= MOVE_LIMIT){
+        ghost = { x:e.clientX, y:e.clientY, until:Date.now() + 700 };   // このあとの同じ指の mouse/click を捨てる(上の 👻)
+        fn(e);
+      }
     });
     el.addEventListener('pointercancel', ()=>{ pid = null; el.classList.remove('pressing'); });
     el.addEventListener('contextmenu', e=> e.preventDefault());   // 長押しメニュー抑止
