@@ -155,6 +155,14 @@ body.cs0 .sct-n{ font-size:1.4em; }
 body.cs1 .sct-n{ font-size:1.75em; }
 body.cs2 .sct-n{ font-size:2.05em; }
 .sc-timer.sct-alarm{ animation:tmblink .8s ease-in-out infinite; }
+/* すうじ(せっていの「タイマーの みせかた」・2026-10-30): 円グラフの かわりに 残りを 分:秒 で */
+.sc-timer.sct-digital{ border-radius:16px; background:var(--card-now); border:3px solid #34b27b; }
+.sct-digital .sct-inner{ width:100%; height:100%; border-radius:14px; background:transparent; }
+.sct-digital .sct-n{ font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+body.cs0 .sct-digital .sct-n{ font-size:1.15em; }
+body.cs1 .sct-digital .sct-n{ font-size:1.4em; }
+body.cs2 .sct-digital .sct-n{ font-size:1.6em; }
+.sched-card:focus-visible, .sc-timer:focus-visible{ outline:3px solid var(--ink); outline-offset:3px; }
 
 .today-empty{
   background:var(--card); border:1.5px solid var(--brand); border-radius:12px;

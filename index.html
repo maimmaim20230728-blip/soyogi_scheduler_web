@@ -253,7 +253,7 @@
   <button id="tab-set" class="tab">せってい</button>
 </nav>
 
-<div id="toast" class="toast"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="audio.js"></script>
 <script src="tap.js"></script>
@@ -263,10 +263,13 @@
 <script src="app.js"></script>
 <!-- Farcaster Mini App SDK・読み込み完了を通知しスプラッシュを閉じる（Farcaster外では無害にスキップ）🔴web側専用 -->
 <script type="module">
-  try {
-    const { sdk } = await import("https://esm.sh/@farcaster/miniapp-sdk");
-    await sdk.actions.ready();
-  } catch (e) { /* Farcaster外では何もしない */ }
+  /* Farcaster の中(iframe / アプリの WebView)で開いたときだけ SDK を読む。ふつうのブラウザ・PWA では外へつながない */
+  if ((window.self !== window.top) || window.ReactNativeWebView) {
+    try {
+      const { sdk } = await import("https://esm.sh/@farcaster/miniapp-sdk");
+      await sdk.actions.ready();
+    } catch (e) { /* Farcaster外では何もしない */ }
+  }
 </script>
 </body>
 </html>

@@ -9,7 +9,7 @@
      文字は i18n.js の howto(store/_i18n_howto/merge.js で差し込み) */
 (function(){
 
-const VER = '0.2.6';
+const VER = '0.2.7';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_HOWTO  = 'sched.howto.v1';   // v0.2 やりかた { lists:[{ id:'h1', name, kind:'steps'|'place'|'route', steps:[{ text, img }], updated }] }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
@@ -64,7 +64,7 @@ function sanitizePref(p){
   };
 }
 let pref = sanitizePref(loadJSON(LS_PREF));
-function savePref(){ saveJSON(LS_PREF, pref); }
+function savePref(){ if(!saveJSON(LS_PREF, pref)) toast(T('make.storageFull')); }   // 保存できなければ知らせる(2026-10-30)
 function next(list, cur){ return list[(list.indexOf(cur) + 1) % list.length]; }
 
 /* ---- i18n ---- */
@@ -109,7 +109,7 @@ if(!Array.isArray(customStore)) customStore = [];
 function saveCustom(){ return saveJSON(LS_CUSTOM, customStore); }
 let labelStore = loadJSON(LS_LABELS);
 if(!labelStore || typeof labelStore !== 'object') labelStore = {};
-function saveLabels(){ saveJSON(LS_LABELS, labelStore); }
+function saveLabels(){ if(!saveJSON(LS_LABELS, labelStore)) toast(T('make.storageFull')); }
 function findBuiltin(id){ for(const c of CAT.CARDS) if(c.id === id) return c; return null; }
 function findCustom(id){ for(const c of customStore) if(c.id === id) return c; return null; }
 function resolveCard(ref){
@@ -149,7 +149,28 @@ function seedPlan(){
 }
 let plan = loadJSON(LS_PLAN);
 if(!plan || !Array.isArray(plan.items)) plan = seedPlan();
-function savePlan(){ plan.updated = Date.now(); saveJSON(LS_PLAN, plan); }
+/* 保存できなければ(容量がいっぱい など)その場で知らせる(2026-10-30)。画面の予定は このまま使える */
+function savePlan(){
+  plan.updated = Date.now();
+  const ok = saveJSON(LS_PLAN, plan);
+  if(!ok) toast(T('make.storageFull'));
+  return ok;
+}
+/* 日が変わったら 前の日の「おわった」を残さない(2026-10-30)。
+   おわった を付けた日(doneDay・端末の日付)が きょうと ちがえば、ぜんぶ まだ に もどす(=さいしょから と同じ)。
+   doneDay が無い前の版のデータは、最後に保存した時刻(updated)の日で見る。起動・アプリに もどったとき・よていを描くときに見る */
+function dayKey(ts){ const d = new Date(ts); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+function rolloverDone(){
+  if(!plan.items.some(it => it.done)) return false;
+  const day = plan.doneDay || (plan.updated ? dayKey(plan.updated) : '');
+  if(!day || day === dayKey(Date.now())) return false;
+  plan.items.forEach(it => it.done = false);
+  delete plan.doneDay;
+  hideUndo();
+  savePlan();
+  return true;
+}
+function markDoneDay(){ plan.doneDay = dayKey(Date.now()); }
 function currentIndex(){ return plan.items.findIndex(it => !it.done); }
 function remainingCount(){ return plan.items.filter(it => !it.done).length; }
 
@@ -202,6 +223,7 @@ function cycleTapN(){
 
 /* ---- よてい(実行ビュー) ---- */
 function renderToday(){
+  rolloverDone();   // 日が変わっていたら 前の日の「おわった」を もどしてから描く
   const list = $('today-list'); list.textContent = '';
   const badge = $('today-remain');
   if(!plan.items.length){
@@ -228,16 +250,21 @@ function renderToday(){
     const c = resolveCard(o.x.ref);
     const card = el('div', 'sched-card' + (idx === 0 ? ' sc-now' : ''));   // 一番上=白、これから=薄いグレー
     card.setAttribute('data-idx', String(o.i));
+    card.setAttribute('role', 'button'); card.tabIndex = 0;   // キーボード・スイッチでも押せる(Enter / スペースは tap.js・2026-10-30)
+    card.setAttribute('aria-label', c.label || c.emoji || '');
     const main = el('div', 'sc-main');                                     // 中身(絵+文字)は左そろえ
     main.appendChild(createFace('sc-emoji', c));
     if(pref.showText && c.label) main.appendChild(el('div', 'sc-text', c.label));   // 文字なし設定/空ラベルなら絵だけ
     card.appendChild(main);
     if(o.x.min > 0){
-      const timer = el('div', 'sc-timer');                                // タイマーは右側・大きめ
+      const digital = pref.timerStyle === 'digital';                      // せっていの「タイマーの みせかた」= すうじ のときは 残り時間を 数字(分:秒)で(2026-10-30)
+      const timer = el('div', 'sc-timer' + (digital ? ' sct-digital' : ''));   // タイマーは右側・大きめ
       const inner = el('div', 'sct-inner');
-      inner.appendChild(el('span', 'sct-n', String(o.x.min)));
+      inner.appendChild(el('span', 'sct-n', digital ? fmtMinSec(o.x.min * 60) : String(o.x.min)));
       timer.appendChild(inner);
-      timer.style.background = 'conic-gradient(#34b27b 360deg, #dfeae4 0deg)';   // 満タン(まだ動いていない)
+      if(!digital) timer.style.background = 'conic-gradient(#34b27b 360deg, #dfeae4 0deg)';   // 満タン(まだ動いていない)
+      timer.setAttribute('role', 'button'); timer.tabIndex = 0;
+      timer.setAttribute('aria-label', '⏱ ' + T('make.min') + ' ' + o.x.min + T('make.minUnit'));
       Tap.bind(timer, e => ptToggle(o.i, timer, e), { silent:true });            // タイマー(円)タップ=開始/停止
       card.appendChild(timer);
     }
@@ -252,12 +279,20 @@ function renderToday(){
    ・カード本体タップ=完了、タイマー(円)タップ=開始/停止(stopPropagationで区別) */
 let ptActive = -1, ptEnd = 0, ptIv = 0;
 function ptRing(i){ return document.querySelector('.sched-card[data-idx="' + i + '"] .sc-timer'); }
+function fmtMinSec(sec){   // timer.js の すうじ と同じ形(分:秒)
+  sec = Math.max(0, Math.ceil(sec));
+  return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+}
 function ptPaint(ring, i, remain){
+  const n = ring.querySelector('.sct-n');
+  if(ring.classList.contains('sct-digital')){   // すうじ: 残りを 分:秒 で
+    if(n) n.textContent = fmtMinSec(remain);
+    return;
+  }
   const total = (plan.items[i] ? plan.items[i].min : 0) * 60;
   const frac = total > 0 ? Math.max(0, Math.min(1, remain / total)) : 0;
   const deg = frac * 360;
   ring.style.background = 'conic-gradient(#34b27b ' + deg + 'deg, #dfeae4 ' + deg + 'deg)';
-  const n = ring.querySelector('.sct-n');
   if(n) n.textContent = String(Math.max(0, Math.ceil(remain / 60)));
 }
 function ptStop(){ if(ptIv){ clearInterval(ptIv); ptIv = 0; } ptActive = -1; }
@@ -307,7 +342,7 @@ function markDone(i){
   if(!it || it.done) return;
   Sound.ding('done'); vibrate(30);
   if(i === ptActive) ptStop();
-  it.done = true; savePlan();
+  it.done = true; markDoneDay(); savePlan();
   showUndo(it);   // 誤タップで消えても、数秒だけ「もどす」で戻せる
   const card = document.querySelector('.sched-card[data-idx="' + i + '"]');
   if(!card || (fadeMs() + slideMs()) === 0){ renderToday(); return; }   // アニメ0秒 or 要素なし(疑似DOM)は即再描画
@@ -419,7 +454,7 @@ function closeFocus(){
 }
 function focusDone(){
   if(focusI >= 0 && plan.items[focusI]){
-    plan.items[focusI].done = true; savePlan();
+    plan.items[focusI].done = true; markDoneDay(); savePlan();
     Sound.ding('done'); vibrate(30);
   }
   focusI = currentIndex();
@@ -725,7 +760,8 @@ function renderPalette(){
   });
 }
 function addToPlan(ref, label){
-  plan.items.push({ ref, min:0, done:false }); savePlan();
+  plan.items.push({ ref, min:0, done:false });
+  if(!savePlan()){ plan.items.pop(); renderPlanList(); return; }   // 保存できなければ足さない(知らせは savePlan が出す)
   renderPlanList();
   toast('＋ ' + label);
 }
@@ -793,9 +829,9 @@ function askReplacePlan(onYes){
 }
 function doClearPlan(){
   hideUndo();
-  plan.items = []; savePlan();
+  plan.items = []; const ok = savePlan();
   renderPlanList();
-  toast(T('make.cleared'));
+  if(ok) toast(T('make.cleared'));   // 保存できなかったときは「けしました」を出さない(知らせは savePlan が出す)
 }
 function clearPlan(){
   if(plan.items.length){ askReplacePlan(doClearPlan); return; }
@@ -804,8 +840,8 @@ function clearPlan(){
 function applyTemplate(t){
   hideUndo();
   plan.items = t.cards.map(ref => ({ ref, min:0, done:false }));
-  savePlan(); renderPlanList();
-  toast(T('tpl.' + t.id));
+  const ok = savePlan(); renderPlanList();
+  if(ok) toast(T('tpl.' + t.id));
 }
 function loadTemplate(id){
   const t = CAT.TEMPLATES.find(x => x.id === id);
@@ -1381,6 +1417,12 @@ function init(){
   if(document.addEventListener){
     document.addEventListener('visibilitychange', () => {
       if((focusing || playing) && !wakeLock && document.visibilityState === 'visible') acquireWake();
+      /* 夜に開いたまま 次の日に もどったとき: 前の日の「おわった」を もどして描き直す(2026-10-30) */
+      if(document.visibilityState === 'visible' && rolloverDone()){
+        if(focusing){ focusI = currentIndex(); buildFocus(); }
+        if(!$('scr-today').classList.contains('hidden')) renderToday();
+        else if(!$('scr-make').classList.contains('hidden')) renderPlanList();
+      }
     });
   }
 
