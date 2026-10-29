@@ -30,7 +30,8 @@ function makeEl(tag){
     children:[], style:{}, dataset:{}, _ev:{}, _attr:{},
     className:'', value:'', placeholder:'', src:'', href:'', download:'', alt:'',
     rows:0, type:'', hidden:false, disabled:false, lang:'', dir:'', width:320, height:320,
-    appendChild(c){ this.children.push(c); return c; },
+    appendChild(c){ this.children.push(c); c.parentNode = this; return c; },
+    removeChild(c){ const i = this.children.indexOf(c); if(i >= 0) this.children.splice(i, 1); c.parentNode = null; return c; },
     setAttribute(k, v){ this._attr[k] = v; },
     getAttribute(k){ return (k in this._attr) ? this._attr[k] : null; },
     addEventListener(t, h){ (this._ev[t] = this._ev[t] || []).push(h); },
@@ -169,6 +170,14 @@ check('完了したカードは消える(6枚に)', countClass(todayList(), 'sch
 check('先頭が つぎの「かおを あらう」に', (findByClass(todayList(), 'sc-text') || {}).textContent === 'かおを あらう');
 check('あと6こ に減る', created['today-remain'].textContent === 'あと 6こ');
 check('おわったカードは一覧から消える', allText(todayList()).indexOf('おきる') < 0);
+/* 誤タップで消えても、数秒だけ「もどす」で戻せる(2026-10-30) */
+const undoBarNow = () => findByClass(sandbox.document.body, 'undo-bar');
+check('おわったあと 大きな「もどす」が出る', !!undoBarNow() && allText(undoBarNow()).indexOf('もどす') >= 0 && !!findByClass(undoBarNow(), 'undo-btn'));
+tapEl(findByClass(undoBarNow(), 'undo-btn'));
+check('「もどす」で おきる が先頭に戻る(7枚・あと7こ)', countClass(todayList(), 'sched-card') === 7 && (findByClass(todayList(), 'sc-text') || {}).textContent === 'おきる' && created['today-remain'].textContent === 'あと 7こ');
+check('もどしたあと もどす は閉じる', !undoBarNow());
+tapEl(findByClass(todayList(), 'sched-card'));   // もう一度 おきる を完了(以降の検査は元のまま6枚から)
+check('もう一度完了で6枚に', countClass(todayList(), 'sched-card') === 6 && !!undoBarNow());
 
 console.log('[3] しゅうちゅう(1まいずつ)');
 tapEl(created['btn-focus']);
@@ -184,6 +193,7 @@ check('しゅうちゅうの完了もよていに反映(あと5こ)', created['t
 console.log('[4] つくる: パレット・追加・並べ替え・テンプレ');
 tapEl(created['tab-make']);
 check('つくるへ遷移', !created['scr-make'].classList.contains('hidden'));
+check('画面を移ると もどす は閉じる', !undoBarNow());
 check('カテゴリタブが並ぶ', countClass(created['cats'], 'cat-tab') >= 8);
 check('パレットにカードが並ぶ', countClass(created['palette'], 'pcard') >= 5);
 const planBefore = evalCtx('(function(){return JSON.parse(localStorage.getItem("sched.plan.v1")).items.length;})()');
@@ -191,8 +201,35 @@ tapEl(findByClass(created['palette'], 'pcard'));   // 先頭カードを追加
 const planAfter = evalCtx('(function(){return JSON.parse(localStorage.getItem("sched.plan.v1")).items.length;})()');
 check('パレットのタップで よていに1枚ふえる', planAfter === planBefore + 1);
 check('いまの よてい に行が出る', countClass(created['plan-list'], 'plan-row') === planAfter);
+/* 予定が入っているときの テンプレ選び・ぜんぶ けす は、確かめ(いまの よていは きえます)を挟む(2026-10-30) */
+const planLen = () => evalCtx('(function(){return JSON.parse(localStorage.getItem("sched.plan.v1")).items.length;})()');
+const askOvNow = () => findByClass(sandbox.document.body, 'ask-ov');
 created['tpl-select'].value = 'night';
 fire(created['tpl-select'], 'change');
+check('予定ありでテンプレを選ぶと 確かめが出る・まだ置き換わらない', !!askOvNow() && planLen() === planAfter);
+check('確かめの文言(いまの よていは きえます。よいですか?)', allText(askOvNow()).indexOf('いまの よていは きえます。よいですか?') >= 0);
+check('select は空に戻っている', created['tpl-select'].value === '');
+tapEl(findByClass(askOvNow(), 'ask-no'));
+check('「いいえ」で閉じて 予定は そのまま', !askOvNow() && planLen() === planAfter);
+tapEl(created['btn-clear']);
+check('予定ありで ぜんぶ けす を押すと 確かめが出る・まだ消えない', !!askOvNow() && planLen() === planAfter);
+tapEl(findByClass(askOvNow(), 'ask-no'));
+check('「いいえ」で ぜんぶ けす も そのまま', !askOvNow() && planLen() === planAfter);
+tapEl(created['btn-clear']);
+tapEl(findByClass(askOvNow(), 'ask-yes'));
+check('「はい」で ぜんぶ けす が実行される', !askOvNow() && planLen() === 0);
+tapEl(created['btn-clear']);
+check('予定が空なら ぜんぶ けす に確かめは出ない', !askOvNow() && planLen() === 0);
+created['tpl-select'].value = 'night';
+fire(created['tpl-select'], 'change');
+check('予定が空ならテンプレは確かめなしで入る(9枚)', !askOvNow() && countClass(created['plan-list'], 'plan-row') === 9);
+created['tpl-select'].value = 'morning';
+fire(created['tpl-select'], 'change');
+tapEl(findByClass(askOvNow(), 'ask-yes'));
+check('「はい」でテンプレに置き換わる(あさのしたく)', !askOvNow() && countClass(created['plan-list'], 'plan-row') === planLen() && planLen() === 7);
+created['tpl-select'].value = 'night';
+fire(created['tpl-select'], 'change');
+tapEl(findByClass(askOvNow(), 'ask-yes'));
 check('テンプレ(よるのしたく)で9枚に置き換わる', countClass(created['plan-list'], 'plan-row') === 9);
 check('先頭が「ばんごはん」の絵', (findByClass(created['plan-list'], 'pe') || {}).textContent === '🍲');
 
@@ -304,6 +341,16 @@ const good = JSON.stringify({ app:'soyogi_scheduler', ver:1,
 fire(created['bk-file'], 'change', { target:{ files:[{ _text: good }], value:'' } });
 check('予定が差し替わる(おふろ1枚)', evalCtx('(function(){return JSON.parse(localStorage.getItem("sched.plan.v1")).items.length;})()') === 1);
 check('テーマ設定も反映(くろ)', sandbox.document.body.getAttribute('data-theme') === 'dark');
+/* 取り込む自作カード: img が data:image/ で始まらないカードは捨てる(外のURLを取りに行かない)(2026-10-30) */
+const evil = JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[{ ref:'bath', min:0, done:false }], updated:1 },
+  cards:[ { id:'u1', img:'https://evil.example/x.png', text:'がいぶ' }, { id:'u2', img:'javascript:alert(1)', text:'js' },
+          { id:'u3', img:'data:image/jpeg;base64,OKIMG', text:'しゃしん' }, { id:'u4', emoji:'🐕', text:'えカード' }, 'str', null ],
+  prefs:{ lang:'ja', fs:0, sound:true, theme:'dark', bgm:'off', timerStyle:'disc', vol:1 } });
+fire(created['bk-file'], 'change', { target:{ files:[{ _text: evil }], value:'' } });
+const impCards = evalCtx('JSON.parse(localStorage.getItem("sched.cards.v1"))');
+check('取り込みで外のURL・javascript: の img を持つカードは捨てる(2枚だけ残る)', impCards.length === 2 && impCards.every(c => !c.img || /^data:image\//.test(c.img)));
+check('data:image の写真カードと絵カードは残る', impCards.some(c => c.id === 'u3') && impCards.some(c => c.id === 'u4'));
+fire(created['bk-file'], 'change', { target:{ files:[{ _text: good }], value:'' } });   // 元の状態へ
 fire(created['bk-file'], 'change', { target:{ files:[{ _text: JSON.stringify({ app:'other_app' }) }], value:'' } });
 check('別アプリのファイルは拒否', created['toast'].textContent.indexOf('よみこめませんでした') >= 0);
 
@@ -486,7 +533,7 @@ check('en: タブ How-to・しゅるい Route', created['tab-howto'].textContent
 created['set-lang'].value = 'ja'; fire(created['set-lang'], 'change');
 tapEl(byId('btn-lock'));
 check('本人使用モードに もどすと なおす が消える', countClass(created['howto-list'], 'hw-edit') === 0);
-check('app.js の VER は 0.2.5', /const VER = '0\.2\.5'/.test(appTxt));
+check('app.js の VER は 0.2.6', /const VER = '0\.2\.6'/.test(appTxt));
 check('Play版の読み上げは Plugins.TextToSpeech を見る(WebView に registerPlugin は無い)', /c\.Plugins && c\.Plugins\.TextToSpeech/.test(appTxt));
 
 /* ---- [つかいかた] はじめての つかいかた(2026-09-30) ----

@@ -9,7 +9,7 @@
      文字は i18n.js の howto(store/_i18n_howto/merge.js で差し込み) */
 (function(){
 
-const VER = '0.2.5';
+const VER = '0.2.6';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_HOWTO  = 'sched.howto.v1';   // v0.2 やりかた { lists:[{ id:'h1', name, kind:'steps'|'place'|'route', steps:[{ text, img }], updated }] }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
@@ -156,6 +156,7 @@ function remainingCount(){ return plan.items.filter(it => !it.done).length; }
 /* ---- 画面切替 ---- */
 const SCREENS = { 'scr-today':'tab-today', 'scr-howto':'tab-howto', 'scr-make':'tab-make', 'scr-set':'tab-set' };
 function showScreen(id){
+  hideUndo(); closeAsk();
   if(id !== 'scr-today') ptStop();   // よてい以外へ移ったらカードタイマーは止める
   if(id !== 'scr-howto'){ hwEditing = null; hwDelArm = null; }   // やりかたの編集は画面を離れたら閉じる(中身は保存ずみ)
   for(const s in SCREENS){
@@ -307,6 +308,7 @@ function markDone(i){
   Sound.ding('done'); vibrate(30);
   if(i === ptActive) ptStop();
   it.done = true; savePlan();
+  showUndo(it);   // 誤タップで消えても、数秒だけ「もどす」で戻せる
   const card = document.querySelector('.sched-card[data-idx="' + i + '"]');
   if(!card || (fadeMs() + slideMs()) === 0){ renderToday(); return; }   // アニメ0秒 or 要素なし(疑似DOM)は即再描画
   animateOut(card, renderToday);
@@ -316,7 +318,36 @@ function undo(i){
   plan.items[i].done = false; savePlan();
   renderToday();
 }
+/* 「おわった」の もどす(2026-10-30): カードを1回押すと消えて戻せなかった(誤タップで支援者が組んだ予定が崩れる)。
+   消えたあと UNDO_MS だけ、画面の下に大きな「もどす」を出す。押すと undo(i) で元の位置に戻る。
+   番号でなく予定の実体(it)を覚える=その間に つくる で並びが変わっても別のカードを戻さない。画面を移る・さいしょから・取り込みでも閉じる */
+const UNDO_MS = 6000;
+let undoBar = null, undoTimer = 0, undoItem = null;
+function hideUndo(){
+  clearTimeout(undoTimer); undoTimer = 0; undoItem = null;
+  if(undoBar && undoBar.parentNode) undoBar.parentNode.removeChild(undoBar);
+  undoBar = null;
+}
+function showUndo(it){
+  hideUndo();
+  undoItem = it;
+  const bar = el('div', 'undo-bar');
+  bar.setAttribute('role', 'status');
+  bar.appendChild(el('span', 'undo-msg', '✓ ' + T('today.done')));
+  const b = el('button', 'undo-btn', '↩ ' + T('today.undo'));
+  b.type = 'button';
+  Tap.bind(b, () => {
+    const idx = plan.items.indexOf(undoItem);
+    hideUndo();
+    if(idx >= 0) undo(idx);
+  });
+  bar.appendChild(b);
+  undoBar = bar;
+  document.body.appendChild(bar);
+  undoTimer = setTimeout(hideUndo, UNDO_MS);
+}
 function resetPlan(){
+  hideUndo();
   plan.items.forEach(it => it.done = false); savePlan();
   renderToday();
 }
@@ -733,17 +764,54 @@ function renderPlanList(){
     pl.appendChild(row);
   });
 }
-function clearPlan(){
+/* いまの よていを消す・置き換える前の確かめ(2026-10-30): 「ぜんぶ けす」と テンプレートの選びなおしが、
+   確かめなしで支援者が組んだ予定を丸ごと消していた。よてい が空のときは確かめを出さない。
+   「いいえ」(戻るボタンも同じ)=何も変えない。「はい」だけが実行する。初めに ふれるのは「いいえ」(うっかり はい を押さない) */
+let askOv = null;
+function closeAsk(){
+  if(askOv && askOv.parentNode) askOv.parentNode.removeChild(askOv);
+  askOv = null;
+}
+function askReplacePlan(onYes){
+  closeAsk();
+  const ov = el('div', 'ask-ov');
+  ov.setAttribute('role', 'alertdialog'); ov.setAttribute('aria-modal', 'true');
+  const box = el('div', 'ask-box');
+  box.appendChild(el('p', 'ask-msg', T('make.replaceAsk')));
+  const row = el('div', 'ask-row');
+  const no = el('button', 'ask-btn ask-no', T('make.replaceNo'));
+  const yes = el('button', 'ask-btn ask-yes', T('make.replaceYes'));
+  no.type = 'button'; yes.type = 'button';
+  Tap.bind(no, closeAsk);
+  Tap.bind(yes, () => { closeAsk(); onYes(); });
+  row.appendChild(no); row.appendChild(yes);
+  box.appendChild(row);
+  ov.appendChild(box);
+  askOv = ov;
+  document.body.appendChild(ov);
+  try{ no.focus(); }catch(_){}
+}
+function doClearPlan(){
+  hideUndo();
   plan.items = []; savePlan();
   renderPlanList();
   toast(T('make.cleared'));
 }
+function clearPlan(){
+  if(plan.items.length){ askReplacePlan(doClearPlan); return; }
+  doClearPlan();
+}
+function applyTemplate(t){
+  hideUndo();
+  plan.items = t.cards.map(ref => ({ ref, min:0, done:false }));
+  savePlan(); renderPlanList();
+  toast(T('tpl.' + t.id));
+}
 function loadTemplate(id){
   const t = CAT.TEMPLATES.find(x => x.id === id);
   if(!t) return;
-  plan.items = t.cards.map(ref => ({ ref, min:0, done:false }));
-  savePlan(); renderPlanList();
-  toast(T('tpl.' + id));
+  if(plan.items.length){ askReplacePlan(() => applyTemplate(t)); return; }   // 「いいえ」なら select は(呼び出し側で)もう空に戻してあるので何も変わらない
+  applyTemplate(t);
 }
 function nextCustomId(){
   let maxN = 0;
@@ -1017,6 +1085,7 @@ function minimizeApp(){
 
 /* ---- Android の戻るボタン(Play版だけ・2026-09-30) ----
    @capacitor/app が無いと、戻るを押すと アプリごと後ろに下がっていた(Android 11 以前は閉じる)。押したときの順:
+   ⓪よていを消す・置き換える前の確かめ=「いいえ」(何も変えない)
    ①いちばん上の全画面: しゃしんの トリミング=やめる / やりかたを みる=2だん目より先なら まえ・1だん目と「おわりました」は とじる
      / 1まいずつ みる(しゅうちゅう)=とじる
    ②やりかた の「ほんとうに けす?」=けさずに もどす(いいえ) / やりかたを なおしている=できあがり と同じ
@@ -1031,6 +1100,7 @@ function blurActive(){
 }
 function onBack(){
   blurActive();
+  if(askOv){ closeAsk(); return; }   // 予定を消す前の確かめ: 戻る=「いいえ」
   if(guideOv){ guideOv._back(); return; }   // はじめての つかいかた: まえの ページ / 1ページ目は(初回)後ろに下げる・(せっていから)とじる
   if(isShown('scr-crop')){ closeCrop(); return; }
   if(isShown('scr-play')){ if(!playEnded && playIdx > 0) playPrev(); else closePlay(); return; }
@@ -1173,6 +1243,12 @@ function exportBackup(){
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   toast(T('set.exported'));
 }
+/* 取り込む自作カード: オブジェクト以外と、img が data:image/ で始まらないカードは捨てる(外のURLや javascript: を
+   <img src> に入れて、読み込んだだけで外へ取りに行かないように。やりかたの sanitizeHowto と同じ考え方) */
+function sanitizeCards(list){
+  return list.filter(c => c && typeof c === 'object' && !Array.isArray(c)
+    && (c.img === undefined || c.img === null || c.img === '' || (typeof c.img === 'string' && /^data:image\//.test(c.img))));
+}
 function importBackup(e){
   const f = e.target.files && e.target.files[0];
   if(!f) return;
@@ -1181,8 +1257,9 @@ function importBackup(e){
     try{
       const d = JSON.parse(r.result);
       if(d.app !== 'soyogi_scheduler') throw new Error('different app');
+      hideUndo();
       if(d.plan && Array.isArray(d.plan.items)){ plan = d.plan; saveJSON(LS_PLAN, plan); }
-      if(Array.isArray(d.cards)){ customStore = d.cards; saveCustom(); }
+      if(Array.isArray(d.cards)){ customStore = sanitizeCards(d.cards); saveCustom(); }
       if(d.labels && typeof d.labels === 'object'){ labelStore = d.labels; saveLabels(); }
       if(d.howto){ const h = sanitizeHowto(d.howto); if(h){ howto = h; saveHowto(); } }   // やりかたの無い古いファイル(ver1)は今の やりかた をそのまま残す
       hwEditing = null; hwDelArm = null;

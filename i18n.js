@@ -34,7 +34,8 @@ var ja = {
     focus:'1まいずつ みる',
     reset:'さいしょから',
     upcoming:'つぎから',
-    doneSection:'おわったこと'
+    doneSection:'おわったこと',
+    undo:'もどす'
   },
   make: {
     hint:'カードを おすと、よていに ついかされます。',
@@ -49,6 +50,9 @@ var ja = {
     remove:'けす',
     clear:'ぜんぶ けす',
     cleared:'けしました ✓',
+    replaceAsk:'いまの よていは きえます。よいですか?',
+    replaceNo:'いいえ',
+    replaceYes:'はい',
     loadTpl:'テンプレートから いれる',
     tplPick:'えらぶ',
     addCustom:'じぶんで つくる',
@@ -171,7 +175,8 @@ var en = {
     focus:'One at a time',
     reset:'Start over',
     upcoming:'Coming up',
-    doneSection:'Finished'
+    doneSection:'Finished',
+    undo:'Undo'
   },
   make: {
     hint:'Tap a card to add it to the plan.',
@@ -186,6 +191,9 @@ var en = {
     remove:'Remove',
     clear:'Clear all',
     cleared:'Cleared ✓',
+    replaceAsk:'The current plan will be erased. Is that OK?',
+    replaceNo:'No',
+    replaceYes:'Yes',
     loadTpl:'From a template',
     tplPick:'Choose',
     addCustom:'Make your own',
@@ -355,6 +363,18 @@ ko.guide = {"title":"사용 방법","step":"{n} / {m}","prev":"이전","next":"�
 zh.guide = {"title":"使用方法","step":"{n} / {m}","prev":"上一步","next":"下一步","start":"开始","again":"再看一次","heads":["欢迎使用 {app.name}","“{tab.today}”：今天的安排","“{howto.tab}”：一步一步看","给编排日程的人（编辑模式）","“{tab.make}”：排列日程","数据只保存在本设备","更容易看、更容易听"],"bodies":["本应用用图卡把今天要做的事排列出来，让人一眼看出现在做什么、接下来做什么。\n计时器可以显示还剩多少时间。\n可以在上方的“{set.lang}”中选择语言。","在下方的“{tab.today}”中，日程的图卡从上到下排列。最上面的一张就是现在要做的事。\n做完后点按卡片，它会消失，下一张会升上来。设定了时间的卡片，点按右边的圆圈即可开始计时。\n“{today.focus}”可以把一张卡片放大显示。“{today.reset}”会回到开头。","在下方的“{howto.tab}”中，可以用照片和文字一步一步地查看一件事的做法。\n点按想看的项目打开，用“{howto.next}”和“{howto.prev}”翻页。做完一步就点“{howto.done}”。在最后一步点“{howto.done}”会显示“{howto.endTitle}”。\n“{howto.speak}”可以朗读这一步。","日程由照护者或家人来编排和修改。\n连续点按上方的 🔒 {tapN} 次，就会进入编辑模式，下方会出现“{tab.make}”和“{tab.set}”。\n在“{tab.set}”中点“{lock.toSelf}”即可恢复原样。重新打开应用时也会恢复。","在“{tab.make}”中点按卡片，就会添加到日程的最后。在“{make.loadTpl}”中选择后，当前日程会换成该模板。\n在“{make.addCustom}”中输入文字后点“{make.addEmoji}”，或用“{make.photo}”制作自己的卡片。\n在“{make.planTitle}”中可以修改顺序（▲▼）、时间和文字。做法可以在“{howto.tab}”的“{howto.newHead}”中制作。","日程、卡片、照片和做法只保存在本设备中，不会发送到任何地方。也不需要注册。\n换手机时，在“{tab.set}”中点“{set.bkExport}”保存文件，再在新手机上点“{set.bkImport}”。","在“{tab.set}”中可以更改“{set.fs}”“{set.cardSize}”“{set.showText}”“{set.theme}”“{set.bgm}”“{set.sound}”等。把“{set.showText}”设为“{set.off}”后，只显示图片。\n本说明随时可以在“{tab.set}”的“{guide.title}”中点“{guide.again}”再次查看。"]};
 ar.guide = {"title":"طريقة الاستخدام","step":"{n} / {m}","prev":"السابق","next":"التالي","start":"ابدأ","again":"اعرض مرة أخرى","heads":["مرحباً بك في {app.name}","«{tab.today}»: جدول اليوم","«{howto.tab}»: خطوة بخطوة","لمن يُعدّ الجدول (وضع الإنشاء)","«{tab.make}»: ترتيب الجدول","بياناتك تبقى على هذا الجهاز","رؤية وسماع أسهل"],"bodies":["يرتّب هذا التطبيق ما ستفعله اليوم في بطاقات مصوّرة، لترى ما تفعله الآن وما يأتي بعده.\nيُظهر المؤقّت كم بقي من الوقت.\nاختر اللغة في الأعلى من «{set.lang}».","في «{tab.today}» في الأسفل، تُرتَّب بطاقات الجدول من الأعلى إلى الأسفل. البطاقة العليا هي ما تفعله الآن.\nعندما تنتهي، المس البطاقة فتختفي وتصعد التالية. في البطاقة التي لها وقت، المس الدائرة التي في طرفها ليبدأ المؤقّت.\n«{today.focus}» يعرض بطاقة واحدة كبيرة. «{today.reset}» يعود إلى البداية.","في «{howto.tab}» في الأسفل، ترى طريقة فعل شيء واحد خطوة بخطوة بالصور والكلمات.\nالمس ما تريد لفتحه، وتنقّل بـ«{howto.next}» و«{howto.prev}». عندما تنتهي من خطوة المس «{howto.done}». في الخطوة الأخيرة يُظهر «{howto.done}» عبارة «{howto.endTitle}».\n«{howto.speak}» يقرأ الخطوة بصوت عالٍ.","يُعدّ الجدول ويغيّره مقدّم الرعاية أو أحد أفراد العائلة.\nالمس 🔒 في الأعلى {tapN} مرات متتالية للدخول إلى وضع الإنشاء، فيظهر «{tab.make}» و«{tab.set}» في الأسفل.\nللعودة، المس «{lock.toSelf}» في «{tab.set}». ويعود أيضاً عند فتح التطبيق من جديد.","في «{tab.make}»، المس بطاقة لإضافتها إلى نهاية الجدول. وإذا اخترت شيئاً من «{make.loadTpl}» يُستبدل الجدول الحالي بذلك القالب.\nفي «{make.addCustom}» اكتب الكلمات والمس «{make.addEmoji}»، أو استخدم «{make.photo}» لصنع بطاقتك.\nفي «{make.planTitle}» يمكنك تغيير الترتيب (▲▼) والوقت والكلمات. تُنشأ الإرشادات من «{howto.newHead}» في «{howto.tab}».","الجداول والبطاقات والصور والإرشادات تبقى على هذا الجهاز فقط ولا تُرسل إلى أي مكان. لا حاجة إلى تسجيل.\nعند تغيير الهاتف، المس «{set.bkExport}» في «{tab.set}» لحفظ ملف، ثم المس «{set.bkImport}» في الهاتف الجديد.","في «{tab.set}» يمكنك تغيير «{set.fs}» و«{set.cardSize}» و«{set.showText}» و«{set.theme}» و«{set.bgm}» و«{set.sound}» وغيرها. اجعل «{set.showText}» على «{set.off}» لتظهر الصور فقط.\nيمكنك رؤية هذا الدليل مرة أخرى في أي وقت من «{guide.again}» في «{guide.title}» داخل «{tab.set}»."]};
 /* ---- /はじめての つかいかた ---- */
+
+/* ---- 予定を消す・置き換える前の確かめ と「おわった」の もどす(2026-10-30・全12言語) ---- */
+de.make.replaceAsk = 'Der aktuelle Plan wird gelöscht. Ist das in Ordnung?'; de.make.replaceNo = 'Nein'; de.make.replaceYes = 'Ja'; de.today.undo = 'Rückgängig';
+fr.make.replaceAsk = "Le planning actuel sera effacé. Est-ce d'accord ?"; fr.make.replaceNo = 'Non'; fr.make.replaceYes = 'Oui'; fr.today.undo = 'Annuler';
+es.make.replaceAsk = 'El plan actual se borrará. ¿Está bien?'; es.make.replaceNo = 'No'; es.make.replaceYes = 'Sí'; es.today.undo = 'Deshacer';
+it.make.replaceAsk = 'Il programma attuale verrà cancellato. Va bene?'; it.make.replaceNo = 'No'; it.make.replaceYes = 'Sì'; it.today.undo = 'Annulla';
+pt.make.replaceAsk = 'O plano atual será apagado. Tudo bem?'; pt.make.replaceNo = 'Não'; pt.make.replaceYes = 'Sim'; pt.today.undo = 'Desfazer';
+nl.make.replaceAsk = 'De huidige planning wordt gewist. Is dat goed?'; nl.make.replaceNo = 'Nee'; nl.make.replaceYes = 'Ja'; nl.today.undo = 'Ongedaan maken';
+sv.make.replaceAsk = 'Det nuvarande schemat raderas. Är det okej?'; sv.make.replaceNo = 'Nej'; sv.make.replaceYes = 'Ja'; sv.today.undo = 'Ångra';
+ko.make.replaceAsk = '지금 일정이 지워져요. 괜찮을까요?'; ko.make.replaceNo = '아니요'; ko.make.replaceYes = '네'; ko.today.undo = '되돌리기';
+zh.make.replaceAsk = '现在的日程会被清除。可以吗？'; zh.make.replaceNo = '否'; zh.make.replaceYes = '是'; zh.today.undo = '撤销';
+ar.make.replaceAsk = 'سيتم مسح الجدول الحالي. هل توافق؟'; ar.make.replaceNo = 'لا'; ar.make.replaceYes = 'نعم'; ar.today.undo = 'تراجع';
 
 window.SCHED_I18N = { ja: ja, en: en, de: de, fr: fr, es: es, it: it, pt: pt, nl: nl, sv: sv, ko: ko, zh: zh, ar: ar };
 

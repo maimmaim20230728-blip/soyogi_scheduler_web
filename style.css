@@ -448,6 +448,41 @@ input[type="file"].hidden{ display:none; }
 }
 .toast.show{ opacity:1; }
 
+/* 「おわった」の もどす(app.js showUndo・2026-10-30)。消えたカードを数秒だけ戻せる。押しやすい大きさ(高さ64px以上)。
+   トースト(押せない)より上に出す */
+.undo-bar{
+  position:fixed; left:50%; transform:translateX(-50%); z-index:62;
+  bottom:max(calc(96px + env(safe-area-inset-bottom)), calc(var(--tabbar-h) + 12px));
+  width:min(92vw,460px); display:flex; align-items:center; gap:12px;
+  background:#333; color:#fff; border-radius:22px; padding:10px 10px 10px 20px;
+  box-shadow:0 4px 16px rgba(0,0,0,.3);
+}
+.undo-msg{ flex:1 1 auto; min-width:0; font-weight:800; font-size:1.05em; overflow-wrap:anywhere; }
+.undo-btn{
+  flex:0 0 auto; min-width:128px; min-height:64px; padding:0 22px;
+  font-family:inherit; font-size:1.2em; font-weight:800;
+  border:none; border-radius:16px; background:#fff; color:#222;
+}
+
+/* よていを消す・置き換える前の確かめ(app.js askReplacePlan・2026-10-30)。ガイド(75/76)より上 */
+.ask-ov{
+  position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.5);
+  display:flex; align-items:center; justify-content:center;
+  padding:max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.ask-box{
+  width:100%; max-width:420px; background:var(--bg); color:var(--ink);
+  border:3px solid var(--line); border-radius:22px; padding:22px 18px 18px;
+}
+.ask-msg{ margin:0 0 18px; font-size:1.15em; font-weight:800; line-height:1.6; text-align:center; overflow-wrap:anywhere; }
+.ask-row{ display:flex; gap:12px; }
+.ask-btn{
+  flex:1 1 0; min-width:0; min-height:64px; padding:0 8px; overflow-wrap:anywhere;
+  font-family:inherit; font-size:1.15em; font-weight:800; border-radius:16px;
+}
+.ask-no{ border:3px solid var(--line); background:var(--card); color:var(--ink); }
+.ask-yes{ border:3px solid var(--brand); background:var(--brand); color:#fff; }
+
 /* ======== しゃしんの トリミング(全画面) ======== */
 .crop-overlay{ position:fixed; inset:0; background:var(--bg); z-index:70; overflow-y:auto; }
 .crop-inner{
