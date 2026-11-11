@@ -350,6 +350,11 @@ fire(created['bk-file'], 'change', { target:{ files:[{ _text: evil }], value:'' 
 const impCards = evalCtx('JSON.parse(localStorage.getItem("sched.cards.v1"))');
 check('取り込みで外のURL・javascript: の img を持つカードは捨てる(2枚だけ残る)', impCards.length === 2 && impCards.every(c => !c.img || /^data:image\//.test(c.img)));
 check('data:image の写真カードと絵カードは残る', impCards.some(c => c.id === 'u3') && impCards.some(c => c.id === 'u4'));
+/* 取り込む予定に null や 形の ちがうものが混じっても、壊れず 使えるものだけ残す(2026-11-11) */
+const badPlan = JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[ null, 5, { ref:'bath', min:7, done:1 }, { ref:3 } ], updated:'x' },
+  cards:[], prefs:{ lang:'ja', fs:0, sound:true, theme:'dark', bgm:'off', timerStyle:'disc', vol:1 } });
+fire(created['bk-file'], 'change', { target:{ files:[{ _text: badPlan }], value:'' } });
+check('壊れた予定: 使えるものだけ残る(1枚・min 0・done true)', evalCtx('(function(){var p=JSON.parse(localStorage.getItem("sched.plan.v1"));return p.items.length===1&&p.items[0].ref==="bath"&&p.items[0].min===0&&p.items[0].done===true;})()'));
 fire(created['bk-file'], 'change', { target:{ files:[{ _text: good }], value:'' } });   // 元の状態へ
 fire(created['bk-file'], 'change', { target:{ files:[{ _text: JSON.stringify({ app:'other_app' }) }], value:'' } });
 check('別アプリのファイルは拒否', created['toast'].textContent.indexOf('よみこめませんでした') >= 0);
@@ -533,7 +538,7 @@ check('en: タブ How-to・しゅるい Route', created['tab-howto'].textContent
 created['set-lang'].value = 'ja'; fire(created['set-lang'], 'change');
 tapEl(byId('btn-lock'));
 check('本人使用モードに もどすと なおす が消える', countClass(created['howto-list'], 'hw-edit') === 0);
-check('app.js の VER は 0.2.7', /const VER = '0\.2\.7'/.test(appTxt));
+check('app.js の VER は 0.2.8', /const VER = '0.2.8'/.test(appTxt));
 check('Play版の読み上げは Plugins.TextToSpeech を見る(WebView に registerPlugin は無い)', /c\.Plugins && c\.Plugins\.TextToSpeech/.test(appTxt));
 
 /* ---- [つかいかた] はじめての つかいかた(2026-09-30) ----

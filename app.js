@@ -9,7 +9,7 @@
      文字は i18n.js の howto(store/_i18n_howto/merge.js で差し込み) */
 (function(){
 
-const VER = '0.2.7';
+const VER = '0.2.8';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_HOWTO  = 'sched.howto.v1';   // v0.2 やりかた { lists:[{ id:'h1', name, kind:'steps'|'place'|'route', steps:[{ text, img }], updated }] }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
@@ -147,8 +147,21 @@ function seedPlan(){
   const cards = t ? t.cards : [];
   return { items: cards.map(ref => ({ ref, min:0, done:false })), updated: 0 };
 }
-let plan = loadJSON(LS_PLAN);
-if(!plan || !Array.isArray(plan.items)) plan = seedPlan();
+/* 読み込んだ予定の中身を確かめる(壊れたファイルで起動できなくなるのを防ぐ) */
+function sanitizePlan(p){
+  if(!p || typeof p !== 'object' || !Array.isArray(p.items)) return null;
+  const items = [];
+  p.items.forEach(x => {
+    if(!x || typeof x !== 'object' || typeof x.ref !== 'string') return;
+    const it = { ref:x.ref, min: MIN_OPTIONS.includes(x.min) ? x.min : 0, done: !!x.done };
+    if(typeof x.doneDay === 'string') it.doneDay = x.doneDay;
+    items.push(it);
+  });
+  const out = { items, updated: typeof p.updated === 'number' ? p.updated : 0 };
+  if(typeof p.doneDay === 'string') out.doneDay = p.doneDay;
+  return out;
+}
+let plan = sanitizePlan(loadJSON(LS_PLAN)) || seedPlan();
 /* 保存できなければ(容量がいっぱい など)その場で知らせる(2026-10-30)。画面の予定は このまま使える */
 function savePlan(){
   plan.updated = Date.now();
@@ -440,6 +453,7 @@ function buildFocus(){
   }
 }
 function openFocus(){
+  hideUndo();
   ptStop();
   focusing = true; focusI = currentIndex();
   $('scr-focus').classList.remove('hidden');
@@ -1294,15 +1308,17 @@ function importBackup(e){
       const d = JSON.parse(r.result);
       if(d.app !== 'soyogi_scheduler') throw new Error('different app');
       hideUndo();
-      if(d.plan && Array.isArray(d.plan.items)){ plan = d.plan; saveJSON(LS_PLAN, plan); }
-      if(Array.isArray(d.cards)){ customStore = sanitizeCards(d.cards); saveCustom(); }
-      if(d.labels && typeof d.labels === 'object'){ labelStore = d.labels; saveLabels(); }
-      if(d.howto){ const h = sanitizeHowto(d.howto); if(h){ howto = h; saveHowto(); } }   // やりかたの無い古いファイル(ver1)は今の やりかた をそのまま残す
+      let ok = true;   // 保存できなかったものがあれば 取り込みました とは出さない
+      const sp = d.plan && sanitizePlan(d.plan);
+      if(sp){ plan = sp; ok = saveJSON(LS_PLAN, plan) && ok; }
+      if(Array.isArray(d.cards)){ customStore = sanitizeCards(d.cards); ok = saveCustom() && ok; }
+      if(d.labels && typeof d.labels === 'object'){ labelStore = d.labels; ok = saveJSON(LS_LABELS, labelStore) && ok; }
+      if(d.howto){ const h = sanitizeHowto(d.howto); if(h){ howto = h; ok = saveHowto() && ok; } }   // やりかたの無い古いファイル(ver1)は今の やりかた をそのまま残す
       hwEditing = null; hwDelArm = null;
-      pref = sanitizePref(d.prefs); savePref();
+      pref = sanitizePref(d.prefs); ok = saveJSON(LS_PREF, pref) && ok;
       curCat = CAT.CATEGORIES[0].id;
       applyAll();
-      toast(T('set.imported'));
+      toast(T(ok ? 'set.imported' : 'make.storageFull'));
     }catch(err){ toast(T('set.importFail')); }
   };
   r.readAsText(f);
