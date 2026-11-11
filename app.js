@@ -1581,6 +1581,8 @@ function init(){
   if(document.addEventListener){
     document.addEventListener('visibilitychange', () => {
       if(wakeWanted() && !wakeLock && document.visibilityState === 'visible') acquireWake();
+      /* きょうの日付は「おわった」が無くても 日が変わっていれば 書き直す(前の日の日付を出したままにしない・2026-11-11) */
+      if(document.visibilityState === 'visible') renderTodayDate();
       /* 夜に開いたまま 次の日に もどったとき: 前の日の「おわった」を もどして描き直す(2026-10-30) */
       if(document.visibilityState === 'visible' && rolloverDone()){
         if(focusing){ focusI = currentIndex(); buildFocus(); }

@@ -118,7 +118,8 @@ const sandbox = {
     createElement: makeEl,
     documentElement: makeEl('html'),
     body: makeEl('body'),
-    addEventListener(){},
+    _ev: {},
+    addEventListener(t, h){ (this._ev[t] = this._ev[t] || []).push(h); },   // visibilitychange を検査から呼べるように ためておく
     querySelector(){ return null; },       // カードタイマーの再取得は疑似DOMでは非対応(nullで安全に停止)
     querySelectorAll(){ return []; },
     visibilityState: 'visible'
@@ -597,6 +598,17 @@ created['set-lang'].value = 'en'; fire(created['set-lang'], 'change');
 check('155: en の日付は 英語の曜日', /[A-Za-z]/.test(created['today-date'].textContent) && created['lbl-showdate'].textContent === "Show today's date");
 created['set-lang'].value = 'ja'; fire(created['set-lang'], 'change');
 check('155: 設定の既定は showDate=true', evalCtx('JSON.parse(localStorage.getItem("sched.pref.v1")).showDate') === true);
+{ /* 開いたまま 次の日に もどったとき(「おわった」が無くても)日付が きょうに書き直される */
+  const RealDate = sandbox.Date;
+  const DAY = 24 * 60 * 60 * 1000;
+  sandbox.Date = class extends RealDate { constructor(...a){ if(a.length) super(...a); else super(RealDate.now() + DAY); } static now(){ return RealDate.now() + DAY; } };
+  const before = created['today-date'].textContent;
+  (sandbox.document._ev.visibilitychange || []).forEach(h => h());
+  const exp = new sandbox.Date().toLocaleDateString('ja-JP', { month:'long', day:'numeric', weekday:'long' });
+  sandbox.Date = RealDate;
+  check('155: 開いたまま 日が変わって もどると 日付も きょうに書き直す', created['today-date'].textContent === exp && exp !== before);
+  (sandbox.document._ev.visibilitychange || []).forEach(h => h());
+}
 
 /* 156 ほぞんした よてい */
 tapEl(created['tab-make']);
