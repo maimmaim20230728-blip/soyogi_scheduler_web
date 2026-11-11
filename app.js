@@ -9,11 +9,12 @@
      文字は i18n.js の howto(store/_i18n_howto/merge.js で差し込み) */
 (function(){
 
-const VER = '0.2.8';
+const VER = '0.2.9';
 const LS_PLAN   = 'sched.plan.v1';    // { items:[{ref,min,done}], updated }
 const LS_HOWTO  = 'sched.howto.v1';   // v0.2 やりかた { lists:[{ id:'h1', name, kind:'steps'|'place'|'route', steps:[{ text, img }], updated }] }
 const LS_CUSTOM = 'sched.cards.v1';   // [{ id:'u1', emoji, text }]
 const LS_LABELS = 'sched.labels.v1';  // { 組み込みカードid: 上書きした言葉 }(各家庭で表現が違う対応)
+const LS_PLANS  = 'sched.plans.v1';   // v0.2.9 ほぞんした よてい { list:[{ id:'p1', name, items:[{ ref, min }] }] }(曜日ごとの予定など。支援者が名前をつけて いくつでも)
 const LS_PREF   = 'sched.pref.v1';
 
 const LANGS  = ['ja','en','de','fr','es','it','pt','nl','sv','ko','zh','ar'];
@@ -60,7 +61,9 @@ function sanitizePref(p){
     slideSec: (p.slideSec >= 0 && p.slideSec <= 5) ? (p.slideSec | 0) : 1,         // 消えたあと つぎが上がる秒数(0〜5・既定1)
     showText: (p.showText === undefined) ? true : !!p.showText,                    // カードに文字を出すか(字が読めない人向けにOFF可・既定ON)
     showCount: (p.showCount === undefined) ? true : !!p.showCount,                 // 「あと なんこ」バッジを出すか(不安な人向けにOFF可・既定ON)
-    howtoAuto: !!p.howtoAuto                                                       // やりかたの段を じどうで よみあげるか(既定=ボタンで)
+    howtoAuto: !!p.howtoAuto,                                                      // やりかたの段を じどうで よみあげるか(既定=ボタンで)
+    timerAwake: !!p.timerAwake,                                                    // カードのタイマーが動いているあいだ 画面を つけたままにするか(既定OFF=今までどおり・2026-11-11)
+    showDate: (p.showDate === undefined) ? true : !!p.showDate                     // よていの見出しに きょうの 日付と曜日を出すか(既定ON・2026-11-11)
   };
 }
 let pref = sanitizePref(loadJSON(LS_PREF));
@@ -87,7 +90,7 @@ const I18N_MAP = {
   'make-plan-head':'make.planTitle', 'btn-clear':'make.clear',
   'lock-note':'lock.setNote', 'btn-lock':'lock.toSelf', 'btn-lock-make':'lock.toSelf', 'lbl-tapn':'lock.tapN',
   'set-h-normal':'set.hNormal', 'lbl-fs':'set.fs', 'lbl-cardsize':'set.cardSize', 'lbl-showtext':'set.showText', 'lbl-showcount':'set.showCount', 'lbl-theme':'set.theme',
-  'lbl-bgm':'set.bgm', 'lbl-sound':'set.sound', 'lbl-fade':'set.fade', 'lbl-slide':'set.slide',
+  'lbl-bgm':'set.bgm', 'lbl-sound':'set.sound', 'lbl-timerawake':'set.timerAwake', 'lbl-showdate':'set.showDate', 'lbl-fade':'set.fade', 'lbl-slide':'set.slide',
   'set-h-show':'set.hShow', 'lbl-timer':'set.timerStyle', 'lbl-vol':'set.vol',
   'set-h-backup':'set.hBackup', 'bk-hint':'set.bkHint', 'bk-export':'set.bkExport', 'bk-import':'set.bkImport',
   'link-privacy':'set.privacy', 'about-credit':'set.credit',
@@ -100,7 +103,9 @@ const I18N_MAP = {
   'play-close':'howto.close', 'play-speak':'howto.speak', 'play-prev':'howto.prev', 'play-next':'howto.next',
   'play-done':'howto.done', 'play-again':'howto.again', 'play-end-close':'howto.close',
   /* はじめての つかいかた(2026-09-30) */
-  'lbl-guide':'guide.title', 'btn-guide':'guide.again'
+  'lbl-guide':'guide.title', 'btn-guide':'guide.again',
+  /* ほぞんした よてい(2026-11-11) */
+  'saved-head':'make.savedHead', 'saved-hint':'make.savedHint', 'btn-saved-save':'make.savedSave'
 };
 
 /* ---- カタログ解決(組み込みカード or 自作カード) ---- */
@@ -192,6 +197,7 @@ const SCREENS = { 'scr-today':'tab-today', 'scr-howto':'tab-howto', 'scr-make':'
 function showScreen(id){
   hideUndo(); closeAsk();
   if(id !== 'scr-today') ptStop();   // よてい以外へ移ったらカードタイマーは止める
+  if(id !== 'scr-make') savedDelArm = null;   // ほぞんした よてい の「ほんとうに けす?」は 画面を離れたら もどす
   if(id !== 'scr-howto'){ hwEditing = null; hwDelArm = null; }   // やりかたの編集は画面を離れたら閉じる(中身は保存ずみ)
   for(const s in SCREENS){
     $(s).classList.toggle('hidden', s !== id);
@@ -199,7 +205,7 @@ function showScreen(id){
   }
   if(id === 'scr-today') renderToday();
   if(id === 'scr-howto') renderHowto();
-  if(id === 'scr-make'){ renderCats(); renderPalette(); renderPlanList(); }
+  if(id === 'scr-make'){ renderCats(); renderPalette(); renderPlanList(); renderSaved(); }
 }
 
 /* ---- 介護者ロック(モード分離) ----
@@ -235,8 +241,22 @@ function cycleTapN(){
 }
 
 /* ---- よてい(実行ビュー) ---- */
+/* よていの見出しの下に「きょうの 日付と曜日」(端末の日付・いまのことばで)。いま何日かが つかみにくい人の見通し支援。せっていで消せる(2026-11-11)
+   アラビア語は 端末の既定だと イスラム暦になることがあるので グレゴリオ暦に そろえる */
+const DATE_LOCALE = { ja:'ja-JP', en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES', it:'it-IT', pt:'pt-PT', nl:'nl-NL', sv:'sv-SE', ko:'ko-KR', zh:'zh-CN', ar:'ar-u-ca-gregory' };
+function todayDateText(){
+  try{ return new Date().toLocaleDateString(DATE_LOCALE[pref.lang] || 'ja-JP', { month:'long', day:'numeric', weekday:'long' }); }
+  catch(_){ return ''; }   // 古い WebView で Intl が使えなければ 出さない
+}
+function renderTodayDate(){
+  const d = $('today-date'); if(!d) return;
+  const txt = pref.showDate ? todayDateText() : '';
+  d.textContent = txt;
+  d.classList.toggle('hidden', !txt);
+}
 function renderToday(){
   rolloverDone();   // 日が変わっていたら 前の日の「おわった」を もどしてから描く
+  renderTodayDate();
   const list = $('today-list'); list.textContent = '';
   const badge = $('today-remain');
   if(!plan.items.length){
@@ -308,7 +328,7 @@ function ptPaint(ring, i, remain){
   ring.style.background = 'conic-gradient(#34b27b ' + deg + 'deg, #dfeae4 ' + deg + 'deg)';
   if(n) n.textContent = String(Math.max(0, Math.ceil(remain / 60)));
 }
-function ptStop(){ if(ptIv){ clearInterval(ptIv); ptIv = 0; } ptActive = -1; }
+function ptStop(){ if(ptIv){ clearInterval(ptIv); ptIv = 0; } ptActive = -1; if(!wakeWanted()) releaseWake(); }
 function ptTick(){
   const ring = ptRing(ptActive);
   if(!ring){ ptStop(); return; }
@@ -325,6 +345,7 @@ function ptToggle(i, ring, e){
   ptStop();
   ptActive = i; ptEnd = Date.now() + it.min * 60 * 1000;
   ptIv = setInterval(ptTick, 250);
+  if(pref.timerAwake) acquireWake();   // 「タイマーの あいだは がめんを つけたまま」がONなら 画面を消さない
   ptTick();
 }
 function ptResume(){ if(ptActive >= 0 && ptIv){ if(ptRing(ptActive)) ptTick(); else ptStop(); } }
@@ -404,12 +425,19 @@ function resetPlan(){
 let focusI = -1, focusing = false, wakeLock = null;
 let playing = false;   // やりかたを みている(v0.2)。画面を消さない対象に しゅうちゅう と同じく含める
 
+/* 画面を消さない場面: しゅうちゅう・やりかたを みている間 + せっていの「タイマーの あいだは がめんを つけたまま」がONで
+   カードのタイマーが動いている間(2026-11-11)。画面が消えると 合図音も明滅も出ず、戻ったときに まとめて鳴るのを減らす。端末の中だけで完結 */
+function wakeWanted(){ return focusing || playing || (pref.timerAwake && ptActive >= 0 && !!ptIv); }
 function acquireWake(){
+  if(wakeLock) return;
   try{
     if(navigator.wakeLock && navigator.wakeLock.request){
       navigator.wakeLock.request('screen').then(l => {
+        if(wakeLock){ try{ l.release(); }catch(_){} return; }   // その間に別の所で取れていたら二重に持たない
         wakeLock = l;
-        if(!focusing && !playing){ try{ l.release(); }catch(_){} wakeLock = null; }
+        /* 端末が 先に手放したとき(別のアプリへ移ったなど)は 持っていない扱いに戻し、戻ってきたとき取り直せるようにする */
+        try{ l.addEventListener('release', () => { if(wakeLock === l) wakeLock = null; }); }catch(_){}
+        if(!wakeWanted()){ try{ l.release(); }catch(_){} wakeLock = null; }
       }).catch(() => { wakeLock = null; });
     }
   }catch(_){ wakeLock = null; }
@@ -545,6 +573,7 @@ function sanitizeHowto(h){
       kind: HOWTO_KINDS.indexOf(l.kind) >= 0 ? l.kind : 'steps',
       steps: Array.isArray(l.steps) ? l.steps.filter(s => s && typeof s === 'object').map(s => ({
         text:String(s.text || '').slice(0, 40),
+        say:String(s.say || '').slice(0, 80),
         img:(typeof s.img === 'string' && /^data:image\//.test(s.img)) ? s.img : ''
       })) : [],
       updated: +l.updated || 0
@@ -640,6 +669,12 @@ function renderHowtoEditor(){
     inp.value = s.text; inp.placeholder = T('howto.stepPh.' + l.kind);
     inp.addEventListener('change', () => { s.text = (inp.value || '').trim(); touchHowto(l); });
     mid.appendChild(inp);
+    const sayIn = document.createElement('input');   // 声で読む言葉(任意)。空なら 上の ことばを読む
+    sayIn.type = 'text'; sayIn.className = 'pl-edit hw-say'; sayIn.maxLength = 80;
+    sayIn.value = s.say || ''; sayIn.placeholder = T('howto.sayPh');
+    sayIn.setAttribute('aria-label', T('howto.sayPh'));
+    sayIn.addEventListener('change', () => { s.say = (sayIn.value || '').trim(); touchHowto(l); });
+    mid.appendChild(sayIn);
     const btns = el('div', 'hw-btns');
     const ph = el('button', 'mv hw-photo', T('howto.photo'));
     Tap.bind(ph, () => { hwPhotoTarget = { listId:l.id, idx:i }; $('hw-photo-file').click(); });
@@ -720,14 +755,16 @@ function renderPlay(){
   const showTx = pref.showText && !!s.text;   // 文字なし設定なら絵(写真)と読み上げだけ
   const txt = $('play-text'); txt.textContent = showTx ? s.text : ''; txt.classList.toggle('hidden', !showTx);
   $('play-check').classList.toggle('hidden', !playDone[playIdx]);
-  $('play-speak').classList.toggle('hidden', !s.text || !canSpeak());
+  $('play-speak').classList.toggle('hidden', !stepVoice(s) || !canSpeak());
   $('play-prev').classList.toggle('off', playIdx === 0);
   $('play-next').classList.toggle('off', playIdx >= n - 1);
   const dots = $('play-dots'); dots.textContent = '';
   dots.classList.toggle('hidden', !pref.showCount || n > 30);
   l.steps.forEach((_, i) => dots.appendChild(el('span', 'play-dot' + (i === playIdx ? ' cur' : '') + (playDone[i] ? ' done' : ''))));
-  if(pref.howtoAuto && s.text) speak(s.text); else stopSpeak();
+  if(pref.howtoAuto && stepVoice(s)) speak(stepVoice(s)); else stopSpeak();
 }
+/* 声で 読む言葉: 「よみあげ用の ことば」(say)があれば それ、なければ 段の ことば(text)。写真だけの段でも say で声が出せる(2026-11-11) */
+function stepVoice(s){ return (s && (s.say || s.text)) || ''; }
 function playPrev(){ if(playList && playIdx > 0){ playIdx--; renderPlay(); } }
 function playNext(){ if(playList && playIdx < playList.steps.length - 1){ playIdx++; renderPlay(); } }
 function playDoneStep(){
@@ -741,7 +778,7 @@ function playDoneStep(){
 function playAgain(){ if(!playList) return; playIdx = 0; playDone = playList.steps.map(() => false); playEnded = false; renderPlay(); }
 function playSpeakNow(){
   const s = playList && playList.steps[playIdx];
-  if(s && s.text && !speak(s.text)) toast(T('howto.noSpeech'));
+  if(s && stepVoice(s) && !speak(stepVoice(s))) toast(T('howto.noSpeech'));
 }
 
 /* ---- つくる(支援者が予定を組む) ---- */
@@ -822,12 +859,12 @@ function closeAsk(){
   if(askOv && askOv.parentNode) askOv.parentNode.removeChild(askOv);
   askOv = null;
 }
-function askReplacePlan(onYes){
+function askReplacePlan(onYes, msgKey){
   closeAsk();
   const ov = el('div', 'ask-ov');
   ov.setAttribute('role', 'alertdialog'); ov.setAttribute('aria-modal', 'true');
   const box = el('div', 'ask-box');
-  box.appendChild(el('p', 'ask-msg', T('make.replaceAsk')));
+  box.appendChild(el('p', 'ask-msg', T(msgKey || 'make.replaceAsk')));
   const row = el('div', 'ask-row');
   const no = el('button', 'ask-btn ask-no', T('make.replaceNo'));
   const yes = el('button', 'ask-btn ask-yes', T('make.replaceYes'));
@@ -851,17 +888,107 @@ function clearPlan(){
   if(plan.items.length){ askReplacePlan(doClearPlan); return; }
   doClearPlan();
 }
-function applyTemplate(t){
+function applyItems(items, msg){
   hideUndo();
-  plan.items = t.cards.map(ref => ({ ref, min:0, done:false }));
+  plan.items = items.map(x => ({ ref:x.ref, min:x.min || 0, done:false }));
   const ok = savePlan(); renderPlanList();
-  if(ok) toast(T('tpl.' + t.id));
+  if(ok) toast(msg);
 }
+/* id は テンプレートの id、または 's:' + ほぞんした よてい の id(2026-11-11) */
 function loadTemplate(id){
-  const t = CAT.TEMPLATES.find(x => x.id === id);
-  if(!t) return;
-  if(plan.items.length){ askReplacePlan(() => applyTemplate(t)); return; }   // 「いいえ」なら select は(呼び出し側で)もう空に戻してあるので何も変わらない
-  applyTemplate(t);
+  let items, msg;
+  if(id.indexOf('s:') === 0){
+    const p = findSaved(id.slice(2));
+    if(!p) return;
+    items = p.items; msg = p.name;
+  } else {
+    const t = CAT.TEMPLATES.find(x => x.id === id);
+    if(!t) return;
+    items = t.cards.map(ref => ({ ref, min:0 })); msg = T('tpl.' + t.id);
+  }
+  if(plan.items.length){ askReplacePlan(() => applyItems(items, msg)); return; }   // 「いいえ」なら select は(呼び出し側で)もう空に戻してあるので何も変わらない
+  applyItems(items, msg);
+}
+
+/* ---- ほぞんした よてい(2026-11-11) ----
+   月曜は つうしょ、など 曜日ごとの予定を 支援者が名前をつけて いくつでも ほぞんできる。毎回 組み直さなくてよい。
+   えらぶのは テンプレートと同じ「テンプレートから いれる」と ここの「つかう」。置き換える前の確かめ(askReplacePlan)も同じ。
+   ほぞんするのは 並びと 持ち時間だけ(「おわった」は 持たない)。同じ名前で ほぞんすると その よていを 上書きする */
+function sanitizeSaved(sv){
+  if(!sv || !Array.isArray(sv.list)) return null;
+  const seen = {}, list = [];
+  sv.list.forEach((p, i) => {
+    if(!p || typeof p !== 'object' || !Array.isArray(p.items)) return;
+    let id = String(p.id || '');
+    if(!/^p\d+$/.test(id) || seen[id]) id = 'p' + (1000 + i);
+    seen[id] = 1;
+    const items = [];
+    p.items.forEach(x => {
+      if(x && typeof x === 'object' && typeof x.ref === 'string') items.push({ ref:x.ref, min: MIN_OPTIONS.includes(x.min) ? x.min : 0 });
+    });
+    list.push({ id, name:String(p.name || '').slice(0, 20), items });
+  });
+  return { list };
+}
+let savedPlans = sanitizeSaved(loadJSON(LS_PLANS)) || { list:[] };
+let savedDelArm = null;   // 2段階で消す: 1回目で「ほんとうに けす?」、2回目で消す
+function saveSaved(){ return saveJSON(LS_PLANS, savedPlans); }
+function findSaved(id){ return savedPlans.list.find(p => p.id === id) || null; }
+function newSavedId(){
+  let m = 0;
+  savedPlans.list.forEach(p => { const n = parseInt(String(p.id).slice(1), 10); if(n > m) m = n; });
+  return 'p' + (m + 1);
+}
+function renderSaved(){
+  const box = $('saved-list'); if(!box) return;
+  box.textContent = '';
+  const nm = $('saved-name'); if(nm) nm.placeholder = T('make.savedName');
+  savedPlans.list.forEach(p => {
+    const row = el('div', 'saved-row');
+    const tx = el('div', 'saved-text');
+    tx.appendChild(el('div', 'saved-name', p.name));
+    tx.appendChild(el('div', 'saved-n', T('make.savedN').replace('{n}', String(p.items.length))));
+    row.appendChild(tx);
+    const use = el('button', 'set-btn saved-use', T('make.savedUse'));
+    Tap.bind(use, () => useSaved(p.id));
+    const armed = savedDelArm === p.id;
+    const del = el('button', 'ghost-btn saved-del' + (armed ? ' armed' : ''), armed ? T('make.savedDelConfirm') : T('make.savedDel'));
+    Tap.bind(del, () => deleteSaved(p.id));
+    row.appendChild(use); row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+function saveCurrentPlan(){
+  const nm = $('saved-name');
+  const name = ((nm && nm.value) || '').trim().slice(0, 20);
+  if(!name){ toast(T('make.savedNeedName')); return; }
+  if(!plan.items.length){ toast(T('make.empty')); return; }
+  const items = plan.items.map(it => ({ ref:it.ref, min:it.min || 0 }));
+  const old = savedPlans.list.find(p => p.name === name) || null;
+  let backup = null;
+  if(old){ backup = old.items; old.items = items; }
+  else savedPlans.list.push({ id:newSavedId(), name, items });
+  if(!saveSaved()){
+    if(old) old.items = backup; else savedPlans.list.pop();
+    toast(T('make.storageFull')); return;
+  }
+  savedDelArm = null;
+  if(nm) nm.value = '';
+  fillTplSelect(); renderSaved();
+  toast(T('make.savedDone'));
+}
+function useSaved(id){
+  const p = findSaved(id); if(!p) return;
+  if(plan.items.length){ askReplacePlan(() => applyItems(p.items, p.name)); return; }
+  applyItems(p.items, p.name);
+}
+function deleteSaved(id){
+  if(savedDelArm !== id){ savedDelArm = id; renderSaved(); return; }
+  savedDelArm = null;
+  const keep = savedPlans.list;
+  savedPlans.list = keep.filter(p => p.id !== id);
+  if(!saveSaved()){ savedPlans.list = keep; toast(T('make.storageFull')); renderSaved(); return; }
+  fillTplSelect(); renderSaved(); toast(T('make.savedDeleted'));
 }
 function nextCustomId(){
   let maxN = 0;
@@ -1002,6 +1129,13 @@ function fillTplSelect(){
   CAT.TEMPLATES.forEach(t => {
     const o = document.createElement('option'); o.value = t.id; o.textContent = T('tpl.' + t.id); sel.appendChild(o);
   });
+  if(savedPlans.list.length){   // ほぞんした よてい も 同じ選び口から(2026-11-11)
+    const g = document.createElement('optgroup'); g.label = T('make.savedHead');
+    savedPlans.list.forEach(p => {
+      const o = document.createElement('option'); o.value = 's:' + p.id; o.textContent = p.name; g.appendChild(o);
+    });
+    sel.appendChild(g);
+  }
   sel.value = '';
 }
 
@@ -1058,6 +1192,8 @@ function applyI18n(){
   $('btn-slide').textContent = pref.slideSec + T('set.sec');
   $('btn-showtext').textContent = pref.showText ? T('set.on') : T('set.off');
   $('btn-showcount').textContent = pref.showCount ? T('set.on') : T('set.off');
+  $('btn-timerawake').textContent = pref.timerAwake ? T('set.on') : T('set.off');
+  $('btn-showdate').textContent = pref.showDate ? T('set.on') : T('set.off');
   $('btn-theme').textContent = T('set.themes')[THEMES.indexOf(pref.theme)];
   $('btn-bgm').textContent   = T('set.bgms')[BGMS.indexOf(pref.bgm)];
   $('btn-sound').textContent = pref.sound ? T('set.on') : T('set.off');
@@ -1069,7 +1205,7 @@ function applyI18n(){
   const ct = $('custom-text'); if(ct) ct.placeholder = T('make.customText');
   fillTplSelect();
   if(loadJSON(LS_HOWTO) == null) howto = seedHowto();   // まだ保存していない見本は、ことばを変えたら その言語で作り直す
-  renderToday(); renderCats(); renderPalette(); renderPlanList(); renderHowto();
+  renderToday(); renderCats(); renderPalette(); renderPlanList(); renderSaved(); renderHowto();
   if(playing) renderPlay();
   applyBarSpace();   // 言語でタブのラベル幅が変わる(折り返しで高さが増える)ため測り直す
   if(guideOv && guideOv._draw) guideOv._draw();   // はじめての つかいかた も いまの ページのまま 訳し直す
@@ -1273,7 +1409,7 @@ function openGuide(first){
 
 /* ---- 機種変更(バックアップ)・おうち介護記録の方式流用 ---- */
 function exportBackup(){
-  const data = { app:'soyogi_scheduler', ver:2, plan, cards: customStore, labels: labelStore, prefs: pref, howto };   // ver2=やりかた入り(ver1のファイルも読める)
+  const data = { app:'soyogi_scheduler', ver:2, plan, cards: customStore, labels: labelStore, prefs: pref, howto, plans: savedPlans };   // ver2=やりかた入り(ver1のファイルも読める)
   const d = new Date();
   const fname = 'soyogi-scheduler-' + d.getFullYear() +
     String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + '.json';
@@ -1304,25 +1440,34 @@ function importBackup(e){
   if(!f) return;
   const r = new FileReader();
   r.onload = () => {
+    let d;
     try{
-      const d = JSON.parse(r.result);
-      if(d.app !== 'soyogi_scheduler') throw new Error('different app');
-      hideUndo();
-      let ok = true;   // 保存できなかったものがあれば 取り込みました とは出さない
-      const sp = d.plan && sanitizePlan(d.plan);
-      if(sp){ plan = sp; ok = saveJSON(LS_PLAN, plan) && ok; }
-      if(Array.isArray(d.cards)){ customStore = sanitizeCards(d.cards); ok = saveCustom() && ok; }
-      if(d.labels && typeof d.labels === 'object'){ labelStore = d.labels; ok = saveJSON(LS_LABELS, labelStore) && ok; }
-      if(d.howto){ const h = sanitizeHowto(d.howto); if(h){ howto = h; ok = saveHowto() && ok; } }   // やりかたの無い古いファイル(ver1)は今の やりかた をそのまま残す
-      hwEditing = null; hwDelArm = null;
-      pref = sanitizePref(d.prefs); ok = saveJSON(LS_PREF, pref) && ok;
-      curCat = CAT.CATEGORIES[0].id;
-      applyAll();
-      toast(T(ok ? 'set.imported' : 'make.storageFull'));
-    }catch(err){ toast(T('set.importFail')); }
+      d = JSON.parse(r.result);
+      if(!d || d.app !== 'soyogi_scheduler') throw new Error('different app');
+    }catch(err){ toast(T('set.importFail')); return; }
+    /* よみこむと 今の よてい・カード・やりかた・せってい が まるごと おきかわる。確かめてから(はじめに ふれるのは「いいえ」・2026-11-11) */
+    askReplacePlan(() => applyBackup(d), 'set.importAsk');
   };
   r.readAsText(f);
   e.target.value = '';
+}
+function applyBackup(d){
+  try{
+    hideUndo();
+    let ok = true;   // 保存できなかったものがあれば 取り込みました とは出さない
+    const sp = d.plan && sanitizePlan(d.plan);
+    if(sp){ plan = sp; ok = saveJSON(LS_PLAN, plan) && ok; }
+    if(Array.isArray(d.cards)){ customStore = sanitizeCards(d.cards); ok = saveCustom() && ok; }
+    if(d.labels && typeof d.labels === 'object'){ labelStore = d.labels; ok = saveJSON(LS_LABELS, labelStore) && ok; }
+    if(d.howto){ const h = sanitizeHowto(d.howto); if(h){ howto = h; ok = saveHowto() && ok; } }   // やりかたの無い古いファイル(ver1)は今の やりかた をそのまま残す
+    if(d.plans){ const sv = sanitizeSaved(d.plans); if(sv){ savedPlans = sv; savedDelArm = null; ok = saveSaved() && ok; } }   // ほぞんした よてい の無い古いファイルは 今のを残す
+    hwEditing = null; hwDelArm = null;
+    pref = sanitizePref(d.prefs); ok = saveJSON(LS_PREF, pref) && ok;
+    curCat = CAT.CATEGORIES[0].id;
+    applyAll();
+    if(wakeWanted()) acquireWake(); else releaseWake();   // タイマー中の「がめんを つけたまま」を 取り込んだ せっていに あわせる
+    toast(T(ok ? 'set.imported' : 'make.storageFull'));
+  }catch(err){ toast(T('set.importFail')); }
 }
 
 /* ---- トースト ---- */
@@ -1371,6 +1516,7 @@ function init(){
   Tap.bind($('btn-focus-done'), focusDone);
 
   Tap.bind($('btn-clear'), clearPlan);
+  Tap.bind($('btn-saved-save'), saveCurrentPlan);
   Tap.bind($('btn-custom-add'), addCustom);
   Tap.bind($('btn-photo'), () => $('photo-file').click());
   $('photo-file').addEventListener('change', onPhotoFile);
@@ -1397,6 +1543,8 @@ function init(){
   Tap.bind($('btn-slide'), () => { pref.slideSec = (pref.slideSec + 1) % 6; savePref(); applyI18n(); });
   Tap.bind($('btn-showtext'), () => { pref.showText = !pref.showText; savePref(); applyI18n(); });
   Tap.bind($('btn-showcount'), () => { pref.showCount = !pref.showCount; savePref(); applyI18n(); });
+  Tap.bind($('btn-timerawake'), () => { pref.timerAwake = !pref.timerAwake; savePref(); applyI18n(); if(wakeWanted()) acquireWake(); else releaseWake(); });
+  Tap.bind($('btn-showdate'), () => { pref.showDate = !pref.showDate; savePref(); applyI18n(); });
   Tap.bind($('btn-theme'), () => {
     pref.theme = next(THEMES, pref.theme);
     applyTheme(); savePref(); applyI18n();
@@ -1432,7 +1580,7 @@ function init(){
 
   if(document.addEventListener){
     document.addEventListener('visibilitychange', () => {
-      if((focusing || playing) && !wakeLock && document.visibilityState === 'visible') acquireWake();
+      if(wakeWanted() && !wakeLock && document.visibilityState === 'visible') acquireWake();
       /* 夜に開いたまま 次の日に もどったとき: 前の日の「おわった」を もどして描き直す(2026-10-30) */
       if(document.visibilityState === 'visible' && rolloverDone()){
         if(focusing){ focusI = currentIndex(); buildFocus(); }

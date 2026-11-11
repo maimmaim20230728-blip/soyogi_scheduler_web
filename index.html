@@ -54,6 +54,7 @@
       <h2 id="today-title" class="scr-title">きょうの よてい</h2>
       <span id="today-remain" class="remain-badge"></span>
     </div>
+    <div id="today-date" class="today-date hidden"></div>
     <div id="today-list"></div>
     <div class="today-actions">
       <button id="btn-focus" class="wide-btn">1まいずつ みる</button>
@@ -127,6 +128,16 @@
     </div>
     <div id="plan-list"></div>
 
+    <div class="make-saved">
+      <h2 id="saved-head" class="sec-h">ほぞんした よてい</h2>
+      <p id="saved-hint" class="hint">いまの よていに なまえを つけて ほぞんできます。ようびごとの よていを つくっておくと、うえの「テンプレート」の ところや ここから えらべます。</p>
+      <div class="saved-add">
+        <input id="saved-name" type="text" maxlength="20">
+        <button id="btn-saved-save" class="set-btn">いまの よていを ほぞん</button>
+      </div>
+      <div id="saved-list"></div>
+    </div>
+
     <button id="btn-lock-make" class="wide-btn make-lock">🔒 本人使用モードに もどす</button>
   </section>
 
@@ -142,6 +153,7 @@
     <div class="set-row"><span id="lbl-cardsize">カードの大きさ</span><button id="btn-cardsize" class="set-btn"></button></div>
     <div class="set-row"><span id="lbl-showtext">カードの文字</span><button id="btn-showtext" class="set-btn"></button></div>
     <div class="set-row"><span id="lbl-showcount">あと なんこ の ひょうじ</span><button id="btn-showcount" class="set-btn"></button></div>
+    <div class="set-row"><span id="lbl-showdate">きょうの ひづけ の ひょうじ</span><button id="btn-showdate" class="set-btn"></button></div>
     <div class="set-row"><span id="lbl-fade">カードが消える</span><button id="btn-fade" class="set-btn"></button></div>
     <div class="set-row"><span id="lbl-slide">つぎが上がる</span><button id="btn-slide" class="set-btn"></button></div>
     <div class="set-row"><span id="lbl-theme">いろ</span><button id="btn-theme" class="set-btn"></button></div>
@@ -152,6 +164,7 @@
     <h2 id="set-h-show" class="sec-h">タイマーの せってい</h2>
     <div class="set-row"><span id="lbl-timer">タイマーの みせかた</span><button id="btn-timer" class="set-btn"></button></div>
     <div class="set-row"><span id="lbl-vol">おとの おおきさ</span><button id="btn-vol" class="set-btn"></button></div>
+    <div class="set-row"><span id="lbl-timerawake">タイマーの あいだは がめんを つけたまま</span><button id="btn-timerawake" class="set-btn"></button></div>
 
     <h2 id="set-h-backup" class="sec-h">きしゅへんこう(バックアップ)</h2>
     <p id="bk-hint" class="hint">あたらしい スマホに うつるときは、「かきだす」で ファイルを ほぞんして、あたらしい スマホで「よみこむ」を おしてください。</p>

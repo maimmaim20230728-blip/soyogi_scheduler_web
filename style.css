@@ -70,7 +70,7 @@ header#hd{
 /* 施錠中だけ鍵の横に出す案内(初見で作成/設定に辿り着けず積むのを防ぐ) */
 .hd-lock-hint{
   font-size:.58em; font-weight:700; line-height:1.15; color:#fff;
-  max-width:6.5em; text-align:right; white-space:normal;
+  max-width:6.5em; text-align:end; white-space:normal;
 }
 .hd-lock-hint.hidden{ display:none; }
 #lang-wrap{ display:flex; align-items:center; gap:4px; flex-shrink:0; }
@@ -104,6 +104,9 @@ header#hd{
   padding:6px 14px; border-radius:999px; font-size:1.05em; white-space:nowrap;
 }
 .remain-badge.hidden{ display:none; }
+/* きょうの 日付と曜日(いま何日かが つかみにくい人の見通し支援・せっていで消せる) */
+.today-date{ color:var(--sub); font-weight:700; font-size:1em; margin:-4px 0 12px; }
+.today-date.hidden{ display:none; }
 
 /* gapではなくmargin-bottomで間隔を作る(完了時に高さ+余白をつぶして下が上がるアニメを効かせるため) */
 #today-list{ display:flex; flex-direction:column; }
@@ -120,7 +123,7 @@ header#hd{
 .sched-card.sc-now{ background:var(--card-now); }
 .sc-main{
   flex:1; min-width:0;
-  display:flex; flex-direction:column; align-items:flex-start; gap:6px; text-align:left;
+  display:flex; flex-direction:column; align-items:flex-start; gap:6px; text-align:start;
 }
 .sc-emoji{ line-height:1; }
 .sc-text{ font-weight:800; overflow-wrap:anywhere; }
@@ -335,6 +338,26 @@ body.cs2 .sct-digital .sct-n{ font-size:1.6em; }
 }
 .make-plan-tools .ghost-btn{ min-height:44px; }
 
+/* ほぞんした よてい(曜日ごとの予定など) */
+.make-saved{ margin-top:18px; }
+.saved-add{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.saved-add #saved-name{
+  flex:1 1 9em; min-width:0; min-height:48px; font-size:1em; font-family:inherit; padding:8px 10px;
+  border:2px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink);
+}
+.saved-add .set-btn{ min-width:auto; flex:0 1 auto; padding:0 16px; }
+#saved-list{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.saved-row{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  background:var(--card); border:2px solid var(--line); border-radius:12px; padding:8px 10px;
+}
+.saved-text{ flex:1 1 8em; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.saved-name{ font-weight:800; overflow-wrap:anywhere; }
+.saved-n{ color:var(--sub); font-size:.9em; font-weight:700; }
+.saved-row .set-btn{ min-width:0; padding:0 16px; min-height:44px; }
+.saved-row .ghost-btn{ min-height:44px; }
+.saved-del.armed{ border-color:var(--accent); color:var(--accent); }
+
 #plan-list{ display:flex; flex-direction:column; gap:8px; margin-top:8px; }
 .plan-row{
   display:flex; align-items:center; gap:8px;
@@ -424,7 +447,7 @@ input[type="file"].hidden{ display:none; }
 .focus-digital{ font-size:1.8em; font-weight:800; font-variant-numeric:tabular-nums; }
 .focus-next{ color:var(--sub); font-size:1em; }
 .focus-next.hidden{ display:none; }
-.focus-next-label{ font-weight:700; margin-right:8px; }
+.focus-next-label{ font-weight:700; margin-inline-end:8px; }
 .focus-next-card{ font-weight:700; }
 .focus-alldone{
   flex:1; display:flex; align-items:center; justify-content:center;

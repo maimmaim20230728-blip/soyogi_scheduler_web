@@ -149,6 +149,12 @@ function check(name, cond){
   else { ng++; console.error('  NG ' + name); }
 }
 const todayList = () => created['today-list'];
+/* バックアップのよみこみは 確かめ(いまの データは おきかわります)が出る(2026-11-11)。ここでは「はい」と答えて 取り込む */
+function importBk(text, answer){
+  fire(created['bk-file'], 'change', { target:{ files:[{ _text: text }], value:'' } });
+  const ov = findByClass(sandbox.document.body, 'ask-ov');
+  if(ov && answer !== 'none') tapEl(findByClass(ov, answer === 'no' ? 'ask-no' : 'ask-yes'));
+}
 
 console.log('[1] 起動・よてい表示(初回=あさのしたく)・ja文言');
 check('よていが表示されている', !created['scr-today'].classList.contains('hidden'));
@@ -338,7 +344,7 @@ check('Blobに自作カードも入る', !!blobJson && Array.isArray(blobJson.ca
 const good = JSON.stringify({ app:'soyogi_scheduler', ver:1,
   plan:{ items:[{ ref:'bath', min:0, done:false }], updated:1 },
   cards:[], prefs:{ lang:'ja', fs:0, sound:true, theme:'dark', bgm:'off', timerStyle:'disc', vol:1 } });
-fire(created['bk-file'], 'change', { target:{ files:[{ _text: good }], value:'' } });
+importBk(good);
 check('予定が差し替わる(おふろ1枚)', evalCtx('(function(){return JSON.parse(localStorage.getItem("sched.plan.v1")).items.length;})()') === 1);
 check('テーマ設定も反映(くろ)', sandbox.document.body.getAttribute('data-theme') === 'dark');
 /* 取り込む自作カード: img が data:image/ で始まらないカードは捨てる(外のURLを取りに行かない)(2026-10-30) */
@@ -346,17 +352,17 @@ const evil = JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[{ ref
   cards:[ { id:'u1', img:'https://evil.example/x.png', text:'がいぶ' }, { id:'u2', img:'javascript:alert(1)', text:'js' },
           { id:'u3', img:'data:image/jpeg;base64,OKIMG', text:'しゃしん' }, { id:'u4', emoji:'🐕', text:'えカード' }, 'str', null ],
   prefs:{ lang:'ja', fs:0, sound:true, theme:'dark', bgm:'off', timerStyle:'disc', vol:1 } });
-fire(created['bk-file'], 'change', { target:{ files:[{ _text: evil }], value:'' } });
+importBk(evil);
 const impCards = evalCtx('JSON.parse(localStorage.getItem("sched.cards.v1"))');
 check('取り込みで外のURL・javascript: の img を持つカードは捨てる(2枚だけ残る)', impCards.length === 2 && impCards.every(c => !c.img || /^data:image\//.test(c.img)));
 check('data:image の写真カードと絵カードは残る', impCards.some(c => c.id === 'u3') && impCards.some(c => c.id === 'u4'));
 /* 取り込む予定に null や 形の ちがうものが混じっても、壊れず 使えるものだけ残す(2026-11-11) */
 const badPlan = JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[ null, 5, { ref:'bath', min:7, done:1 }, { ref:3 } ], updated:'x' },
   cards:[], prefs:{ lang:'ja', fs:0, sound:true, theme:'dark', bgm:'off', timerStyle:'disc', vol:1 } });
-fire(created['bk-file'], 'change', { target:{ files:[{ _text: badPlan }], value:'' } });
+importBk(badPlan);
 check('壊れた予定: 使えるものだけ残る(1枚・min 0・done true)', evalCtx('(function(){var p=JSON.parse(localStorage.getItem("sched.plan.v1"));return p.items.length===1&&p.items[0].ref==="bath"&&p.items[0].min===0&&p.items[0].done===true;})()'));
-fire(created['bk-file'], 'change', { target:{ files:[{ _text: good }], value:'' } });   // 元の状態へ
-fire(created['bk-file'], 'change', { target:{ files:[{ _text: JSON.stringify({ app:'other_app' }) }], value:'' } });
+importBk(good);   // 元の状態へ
+importBk(JSON.stringify({ app:'other_app' }));
 check('別アプリのファイルは拒否', created['toast'].textContent.indexOf('よみこめませんでした') >= 0);
 
 console.log('[9] さいしょから(リセット)');
@@ -526,10 +532,10 @@ tapEl(created['tab-set']);
 tapEl(created['bk-export']);
 const bk2 = JSON.parse(sandbox.__lastBlob.parts.join(''));
 check('バックアップに やりかた が入る(ver2)', bk2.ver === 2 && bk2.howto && bk2.howto.lists.length === 1 && bk2.howto.lists[0].name === 'せんたく' && bk2.howto.lists[0].steps.length === 3);
-fire(created['bk-file'], 'change', { target:{ files:[{ _text: JSON.stringify({ app:'soyogi_scheduler', ver:1, plan:{ items:[] }, cards:[], prefs:{} }) }], value:'' } });
+importBk(JSON.stringify({ app:'soyogi_scheduler', ver:1, plan:{ items:[] }, cards:[], prefs:{} }));
 check('ver1 のファイルを読んでも やりかた は残る', HOWTO().lists.length === 1 && HOWTO().lists[0].name === 'せんたく');
-fire(created['bk-file'], 'change', { target:{ files:[{ _text: JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[] }, cards:[], prefs:{},
-  howto:{ lists:[ { id:'h1', name:'バスで びょういん', kind:'route', steps:[{ text:'バスていに いく' }, { text:'びょういん まえで おりる', img:'javascript:alert(1)' }] } ] } }) }], value:'' } });
+importBk(JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[] }, cards:[], prefs:{},
+  howto:{ lists:[ { id:'h1', name:'バスで びょういん', kind:'route', steps:[{ text:'バスていに いく' }, { text:'びょういん まえで おりる', img:'javascript:alert(1)' }] } ] } }));
 check('ver2 のファイルで やりかた が差し替わる', HOWTO().lists.length === 1 && HOWTO().lists[0].name === 'バスで びょういん' && HOWTO().lists[0].kind === 'route');
 check('写真でない img(data:image 以外)は読み込まない', HOWTO().lists[0].steps[1].img === '');
 /* 英語: タブと しゅるい */
@@ -538,8 +544,218 @@ check('en: タブ How-to・しゅるい Route', created['tab-howto'].textContent
 created['set-lang'].value = 'ja'; fire(created['set-lang'], 'change');
 tapEl(byId('btn-lock'));
 check('本人使用モードに もどすと なおす が消える', countClass(created['howto-list'], 'hw-edit') === 0);
-check('app.js の VER は 0.2.8', /const VER = '0.2.8'/.test(appTxt));
+check('app.js の VER は 0.2.9', /const VER = '0.2.9'/.test(appTxt));
 check('Play版の読み上げは Plugins.TextToSpeech を見る(WebView に registerPlugin は無い)', /c\.Plugins && c\.Plugins\.TextToSpeech/.test(appTxt));
+
+/* ---- [v0.2.9] タイマー中は画面をつけたまま・きょうの日付・ほぞんした よてい・よみこむ前の確かめ・やりかたの よみあげ用の ことば ---- */
+console.log('[v0.2.9] 追加機能');
+const PLAN = () => evalCtx('JSON.parse(localStorage.getItem("sched.plan.v1"))');
+const PLANS = () => evalCtx('JSON.parse(localStorage.getItem("sched.plans.v1") || "null")');
+const PREFS = () => evalCtx('JSON.parse(localStorage.getItem("sched.pref.v1"))');
+const bkP = { lang:'ja', fs:0, sound:true, theme:'dark', bgm:'off', timerStyle:'disc', vol:1 };
+const bkPlan3 = { items:[{ ref:'wake', min:5, done:false }, { ref:'wash', min:0, done:false }, { ref:'toilet', min:10, done:false }], updated:1 };
+const bk3 = JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:bkPlan3, cards:[], prefs:bkP });
+const bk1 = JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[{ ref:'brush', min:0, done:false }], updated:1 }, cards:[], prefs:bkP });
+tapEl(created['tab-set']);
+
+/* 157 よみこむ前の確かめ */
+importBk(bk1);
+check('157: よみこみ(はい)で 予定が入る', PLAN().items.length === 1 && PLAN().items[0].ref === 'brush');
+importBk(bk3, 'none');
+check('157: ファイルを えらぶと 確かめが出る・まだ置き換わらない', !!askOvNow() && PLAN().items.length === 1);
+check('157: 確かめの ことば(おきかわります)', allText(askOvNow()).indexOf('おきかわります。よいですか?') >= 0);
+check('157: 確かめの はじめの ボタンは「いいえ」', findByTag(askOvNow(), 'button').className.indexOf('ask-no') >= 0);
+tapEl(findByClass(askOvNow(), 'ask-no'));
+check('157: 「いいえ」で閉じて 予定は そのまま', !askOvNow() && PLAN().items.length === 1);
+importBk('{こわれた');
+check('157: 読めない ファイルは 確かめを出さず「よみこめませんでした」', !askOvNow() && created['toast'].textContent.indexOf('よみこめませんでした') >= 0 && PLAN().items.length === 1);
+importBk('null');
+check('157: null のファイルでも 壊れず よみこめません', !askOvNow() && created['toast'].textContent.indexOf('よみこめませんでした') >= 0);
+importBk(bk3, 'none');
+tapEl(created['tab-make']);
+check('157: 確かめの途中で 画面を移ると 確かめは閉じる', !askOvNow() && PLAN().items.length === 1);
+tapEl(created['tab-set']);
+importBk(bk3);
+check('157: 「はい」で 3枚に おきかわる', PLAN().items.length === 3);
+
+/* 155 きょうの日付と曜日 */
+tapEl(created['tab-today']);
+const dateExp = lang => new Date().toLocaleDateString(lang, { month:'long', day:'numeric', weekday:'long' });
+check('155: よていの見出しに きょうの日付と曜日(ja)', !created['today-date'].classList.contains('hidden') && created['today-date'].textContent === dateExp('ja-JP') && /曜日/.test(created['today-date'].textContent));
+check('155: 日付は 既定ON(せってい)', created['btn-showdate'].textContent === 'ON' && created['lbl-showdate'].textContent === 'きょうの ひづけ の ひょうじ');
+tapEl(created['tab-set']); tapEl(created['btn-showdate']);
+check('155: OFFで 日付が消える・保存される', created['btn-showdate'].textContent === 'OFF' && created['today-date'].classList.contains('hidden') && created['today-date'].textContent === '' && PREFS().showDate === false);
+tapEl(created['btn-showdate']);
+check('155: ONに戻すと また出る', created['btn-showdate'].textContent === 'ON' && !created['today-date'].classList.contains('hidden'));
+for(const lg of ['en','de','fr','es','it','pt','nl','sv','ko','zh','ar']){
+  created['set-lang'].value = lg; fire(created['set-lang'], 'change');
+  const loc = lg === 'ar' ? 'ar-u-ca-gregory' : ({ en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES', it:'it-IT', pt:'pt-PT', nl:'nl-NL', sv:'sv-SE', ko:'ko-KR', zh:'zh-CN' })[lg];
+  if(created['today-date'].textContent !== dateExp(loc) || !created['today-date'].textContent) check('155: ' + lg + ' の日付', false);
+}
+check('155: 12言語とも 日付が そのことばで出る(en 例: ' + dateExp('en-US') + ')', true);
+created['set-lang'].value = 'en'; fire(created['set-lang'], 'change');
+check('155: en の日付は 英語の曜日', /[A-Za-z]/.test(created['today-date'].textContent) && created['lbl-showdate'].textContent === "Show today's date");
+created['set-lang'].value = 'ja'; fire(created['set-lang'], 'change');
+check('155: 設定の既定は showDate=true', evalCtx('JSON.parse(localStorage.getItem("sched.pref.v1")).showDate') === true);
+
+/* 156 ほぞんした よてい */
+tapEl(created['tab-make']);
+check('156: つくる画面に ほぞんした よてい の欄が出る', created['saved-head'].textContent === 'ほぞんした よてい' && created['btn-saved-save'].textContent === 'いまの よていを ほぞん' && countClass(created['saved-list'], 'saved-row') === 0);
+check('156: ほぞん前は テンプレの選び口に グループが無い', !findByTag(created['tpl-select'], 'optgroup'));
+created['saved-name'].value = '';
+tapEl(created['btn-saved-save']);
+check('156: なまえが空だと ほぞんしない', PLANS() === null && created['toast'].textContent === 'なまえを いれてください');
+created['saved-name'].value = 'げつようび';
+tapEl(created['btn-saved-save']);
+check('156: なまえをつけて ほぞん(3枚・持ち時間も)', PLANS() && PLANS().list.length === 1 && PLANS().list[0].name === 'げつようび' && PLANS().list[0].items.length === 3 && PLANS().list[0].items[0].min === 5 && PLANS().list[0].items[2].min === 10);
+check('156: ほぞんしたら 一覧に出て 入力欄は空に', countClass(created['saved-list'], 'saved-row') === 1 && created['saved-name'].value === '' && created['toast'].textContent === 'ほぞんしました ✓');
+check('156: ほぞんは「おわった」を持たない', PLANS().list[0].items.every(x => x.done === undefined));
+check('156: テンプレの選び口に ほぞんした よてい が入る', !!findByTag(created['tpl-select'], 'optgroup') && allText(created['tpl-select']).indexOf('げつようび') >= 0);
+/* 別の予定にしてから 呼び出す */
+tapEl(created['tab-set']); importBk(bk1); tapEl(created['tab-make']);
+check('156: 一覧に残っている(よみこみ後も同じ)', PLANS().list.length === 1 && countClass(created['saved-list'], 'saved-row') === 1);
+tapEl(findByClass(created['saved-list'], 'saved-use'));
+check('156: 「つかう」は 予定があるとき 確かめが出る・まだ置き換わらない', !!askOvNow() && PLAN().items.length === 1);
+tapEl(findByClass(askOvNow(), 'ask-no'));
+check('156: 「いいえ」で そのまま', !askOvNow() && PLAN().items.length === 1);
+tapEl(findByClass(created['saved-list'], 'saved-use'));
+tapEl(findByClass(askOvNow(), 'ask-yes'));
+check('156: 「はい」で 3枚・持ち時間つきで入る・おわった は ぜんぶ まだ', PLAN().items.length === 3 && PLAN().items[0].ref === 'wake' && PLAN().items[0].min === 5 && PLAN().items.every(x => x.done === false));
+/* テンプレと同じ選び口から */
+tapEl(created['tab-set']); importBk(bk1); tapEl(created['tab-make']);
+created['tpl-select'].value = 's:p1'; fire(created['tpl-select'], 'change');
+check('156: テンプレの選び口からも えらべる(確かめ→はい)', !!askOvNow() && created['tpl-select'].value === '');
+tapEl(findByClass(askOvNow(), 'ask-yes'));
+check('156: 選び口から 3枚に入る', PLAN().items.length === 3 && PLAN().items[2].min === 10);
+/* 同じ名前は 上書き */
+created['saved-name'].value = 'げつようび';
+tapEl(created['btn-clear']); tapEl(findByClass(askOvNow(), 'ask-yes'));
+tapEl(findByClass(created['palette'], 'pcard'));
+tapEl(created['btn-saved-save']);
+check('156: 同じなまえで ほぞんすると 上書き(1つのまま・1枚に)', PLANS().list.length === 1 && PLANS().list[0].items.length === 1);
+created['saved-name'].value = 'かようび';
+tapEl(created['btn-saved-save']);
+check('156: べつの なまえで 2つめ(id が増える)', PLANS().list.length === 2 && PLANS().list[1].id === 'p2' && countClass(created['saved-list'], 'saved-row') === 2);
+tapEl(created['btn-clear']); tapEl(findByClass(askOvNow(), 'ask-yes'));
+created['saved-name'].value = 'から';
+tapEl(created['btn-saved-save']);
+check('156: よてい が空のときは ほぞんしない', PLANS().list.length === 2 && created['toast'].textContent === 'まだ カードが ありません。');
+/* バックアップ */
+tapEl(created['tab-set']);
+tapEl(created['bk-export']);
+const bk4 = JSON.parse(sandbox.__lastBlob.parts.join(''));
+check('156: バックアップに ほぞんした よてい が入る', bk4.plans && bk4.plans.list.length === 2 && bk4.plans.list[0].name === 'げつようび');
+importBk(JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[] }, cards:[], prefs:bkP }));
+check('156: ほぞんの無い古いファイルを読んでも 今の ほぞんは 残る', PLANS().list.length === 2);
+importBk(JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[] }, cards:[], prefs:bkP,
+  plans:{ list:[ { id:'p5', name:'すいようび', items:[ { ref:'wash', min:3 }, { ref:'x', min:99 }, null, { ref:7 } ] }, { id:'p5', name:'もくようび', items:[] }, null, 5, { name:'x' } ] } }));
+check('156: ほぞんを よみこむと 差し替え・形のちがうものは 捨てる・ id かぶりは直す', PLANS().list.length === 2 && PLANS().list[0].name === 'すいようび' && PLANS().list[0].items.length === 2 && PLANS().list[0].items[1].min === 0 && PLANS().list[0].id !== PLANS().list[1].id);
+tapEl(created['tab-make']);
+const delSv = () => findByClass(created['saved-list'], 'saved-del');
+tapEl(delSv());
+check('156: けす 1回目は「ほんとうに けす?」になるだけ', PLANS().list.length === 2 && allText(created['saved-list']).indexOf('ほんとうに けす?') >= 0);
+tapEl(created['tab-set']); tapEl(created['tab-make']);
+check('156: 画面を移ると「ほんとうに けす?」は もどる', allText(created['saved-list']).indexOf('ほんとうに けす?') < 0);
+tapEl(delSv()); tapEl(delSv());
+check('156: けす 2回目で消える', PLANS().list.length === 1 && PLANS().list[0].name === 'もくようび' && countClass(created['saved-list'], 'saved-row') === 1);
+tapEl(delSv()); tapEl(delSv());
+check('156: ぜんぶ消すと 選び口の グループも消える', PLANS().list.length === 0 && !findByTag(created['tpl-select'], 'optgroup'));
+created['set-lang'].value = 'en'; fire(created['set-lang'], 'change');
+check('156: en: 見出し Saved plans', created['saved-head'].textContent === 'Saved plans' && created['btn-saved-save'].textContent === 'Save current plan');
+created['set-lang'].value = 'ja'; fire(created['set-lang'], 'change');
+
+/* 159 やりかたの よみあげ用の ことば */
+tapEl(created['tab-set']);
+importBk(JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[] }, cards:[], prefs:Object.assign({}, bkP, { howtoAuto:false }),
+  howto:{ lists:[ { id:'h1', name:'バス', kind:'route', steps:[
+    { text:'', img:'data:image/jpeg;base64,AA', say:'みぎの ドアから のる' },
+    { text:'バスていに いく', img:'' },
+    { text:'おりる', img:'data:image/jpeg;base64,BB', say:'ボタンを おす' },
+    { text:'ながい', say:'あ'.repeat(120) } ] } ] } }));
+check('159: say が保存される(80字まで)', HOWTO().lists[0].steps[0].say === 'みぎの ドアから のる' && HOWTO().lists[0].steps[1].say === '' && HOWTO().lists[0].steps[3].say.length === 80);
+spoken.length = 0;
+tapEl(created['tab-howto']);
+tapEl(findByClass(created['howto-list'], 'hw-open'));
+check('159: 文字のない写真の段でも 🔊 が出る', !created['play-speak'].classList.contains('hidden') && created['play-text'].classList.contains('hidden'));
+tapEl(created['play-speak']);
+check('159: 🔊 で 読み上げ用の ことばを読む', spoken[0] === 'みぎの ドアから のる');
+tapEl(created['play-next']);
+tapEl(created['play-speak']);
+check('159: say が無い段は 段の ことば(text)を読む', spoken[1] === 'バスていに いく');
+tapEl(created['play-next']);
+tapEl(created['play-speak']);
+check('159: text も say もある段は say を読む', spoken[2] === 'ボタンを おす');
+tapEl(created['play-close']);
+/* なおす画面 */
+for(let i = 0; i < 6; i++) tapEl(byId('hd-lock'));
+tapEl(findByClass(created['howto-list'], 'hw-edit'));
+check('159: なおす画面に 段ごとの 読み上げ用の入力がある(4つ)', countClass(created['hw-steps'], 'hw-say') === 4 && findByClass(created['hw-steps'], 'hw-say').placeholder === 'こえで よむ ことば(なくてもよい)');
+const sayIn = findByClass(created['hw-steps'].children[1], 'hw-say');
+sayIn.value = ' いえを でる '; fire(sayIn, 'change');
+check('159: 入れた ことばが 保存される(前後の空白は とる)', HOWTO().lists[0].steps[1].say === 'いえを でる');
+sayIn.value = ''; fire(sayIn, 'change');
+check('159: 空にすると 段の ことばに もどる', HOWTO().lists[0].steps[1].say === '');
+tapEl(created['hw-finish']);
+tapEl(byId('btn-lock'));
+tapEl(created['tab-set']);
+importBk(JSON.stringify({ app:'soyogi_scheduler', ver:2, plan:{ items:[] }, cards:[], prefs:bkP,
+  howto:{ lists:[ { id:'h1', name:'せんたく', kind:'steps', steps:[ { text:'a' }, { text:'b' }, { text:'c' } ] } ] } }));
+check('159: say の無い 古い やりかた も 読める(say は空)', HOWTO().lists[0].steps.every(x => x.say === ''));
+tapEl(created['tab-today']);
+
+/* 154 タイマー中は画面をつけたまま(同期の部分) */
+check('154: せっていに「タイマーの あいだは がめんを つけたまま」(既定OFF)', created['lbl-timerawake'].textContent === 'タイマーの あいだは がめんを つけたまま' && created['btn-timerawake'].textContent === 'OFF' && PREFS().timerAwake === false);
+check('154: 12言語とも 新しい ことばが ある', Object.keys(I18).length === 12 && Object.keys(I18).every(l => I18[l].set.timerAwake && I18[l].set.showDate && I18[l].set.importAsk && I18[l].make.savedHead && I18[l].howto.sayPh));
+
+/* ---- [154] 画面を消さない(疑似 wakeLock。request は その場で答える形にして 同期で確かめる) ---- */
+console.log('[154] タイマー中は画面をつけたまま(疑似 wakeLock)');
+{
+  let wlReq = 0, wlRel = 0, lastLock = null;
+  sandbox.navigator.wakeLock = { request(){
+    wlReq++;
+    const l = { release(){ wlRel++; }, addEventListener(t, h){ l._h = h; } };
+    lastLock = l;
+    const chain = { catch(){ return chain; }, then(){ return chain; } };
+    return { then(f){ f(l); return chain; } };
+  } };
+  /* カードのタイマー(円)を疑似DOMで動かすため、どのカードの円も 同じ疑似要素を返す */
+  const ringEl = makeEl(); ringEl.querySelector = () => makeEl();
+  sandbox.document.querySelector = () => ringEl;
+  tapEl(created['tab-set']);
+  importBk(bk3);   // 5ふん・なし・10ふん の3枚
+  tapEl(created['tab-today']);
+  const timers = () => { const out = []; (function w(n){ if(n.className && (' ' + n.className + ' ').indexOf(' sc-timer ') >= 0) out.push(n); n.children.forEach(w); })(todayList()); return out; };
+  check('154: タイマーつきのカードが2枚', timers().length === 2);
+  tapEl(timers()[0]);
+  check('154: OFF(既定)では タイマーを動かしても 画面は そのまま', wlReq === 0);
+  tapEl(timers()[0]);   // 止める
+  tapEl(created['tab-set']); tapEl(created['btn-timerawake']);
+  check('154: ONにすると 表示と保存が変わる', created['btn-timerawake'].textContent === 'ON' && PREFS().timerAwake === true);
+  tapEl(created['tab-today']);
+  tapEl(timers()[0]);
+  check('154: ON: タイマーを はじめると 画面を つけたままにする', wlReq === 1 && wlRel === 0);
+  tapEl(timers()[0]);   // もういちど = 止める
+  check('154: ON: タイマーを止めると 手放す', wlRel === 1);
+  tapEl(timers()[0]);
+  check('154: ON: また はじめると また つけたまま', wlReq === 2 && wlRel === 1);
+  tapEl(created['tab-set']);
+  check('154: ON: よてい から 離れると(タイマー停止) 手放す', wlRel === 2);
+  tapEl(created['tab-today']);
+  tapEl(timers()[0]);
+  tapEl(timers()[1]);   // べつの カードの タイマーに うつる(止めて 取り直し)
+  check('154: ON: べつのカードへ うつっても 二重に持たない(つねに1つ)', wlReq - wlRel === 1);
+  /* 端末が先に手放した(別のアプリへ移った など)あとも 壊れず、しゅうちゅうで また取れる */
+  if(lastLock && lastLock._h) lastLock._h();
+  wlRel++;   // 端末が手放した分を数える
+  tapEl(created['btn-focus']);
+  check('154: しゅうちゅうを 開くと 画面を消さない(今までどおり)', wlReq - wlRel === 1 && !created['scr-focus'].classList.contains('hidden'));
+  tapEl(created['focus-close']);
+  check('154: しゅうちゅうを とじると 手放す', wlReq - wlRel === 0);
+  tapEl(created['tab-set']); tapEl(created['btn-timerawake']);   // OFFに戻す
+  sandbox.document.querySelector = () => null;
+  delete sandbox.navigator.wakeLock;
+  check('154: OFFに戻せる', created['btn-timerawake'].textContent === 'OFF' && PREFS().timerAwake === false);
+}
 
 /* ---- [つかいかた] はじめての つかいかた(2026-09-30) ----
    まだ読んでいない端末(案内の しるしが無い)で起動すると案内が出て、読んだ端末では出ない。

@@ -42,6 +42,20 @@ for(const t of TARGETS){
   }
 }
 
+/* アラビア語(右から左)で崩れないよう、style.css に 左右固定の指定を残さない(2026-11-11)。
+   text-align:left/right・float・margin/padding/border の left/right は start/end(margin-inline-end など)にする。
+   端末の切り欠きを避ける env(safe-area-inset-left/right) は 物理的な左右でよいので 見逃す。
+   position:fixed の left:0; right:0 のような 左右対称の指定は 対象外 */
+{
+  const css = fs.readFileSync(path.join(__dirname, 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
+  css.split('\n').forEach((line, i) => {
+    const bad = /text-align\s*:\s*(left|right)\b|float\s*:\s*(left|right)\b|(margin|padding)-(left|right)\s*:|border-(left|right)(-\w+)?\s*:/.test(line);
+    if(bad && !/safe-area-inset/.test(line)){
+      errors++; console.error('NG  style.css:' + (i + 1) + ' 左右固定の指定(アラビア語で崩れる): ' + line.trim().slice(0, 70));
+    }
+  });
+}
+
 /* i18n.js の言語間キー構造チェック(ja=正 と他言語の構造完全一致・配列は要素数も一致) */
 const vm = require('vm');
 const i18nSandbox = { window:{} };
